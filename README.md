@@ -33,3 +33,7 @@ NRF_SDH_BLE_GAP_EVENT_LENGTH 6 (sdk_config.h)\
 NRF_SDH_BLE_GATT_MAX_MTU_SIZE 247 (sdk_config.h)
 
 RAM_START=0x20004650
+
+
+*Making hvn_tx_queue_size 20 allowed more data to be buffered in BLE queue which in tern allowed us to have 127.5ms connection interval.
+**As we increased hvn_tx_queue_size, we had to increase RAM_START address to ensure there was no RAM overlapping region between ble_stack and main program. Otherwise, the BLE device will not advertise.
