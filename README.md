@@ -1,5 +1,11 @@
 # SPI2BLE-UpWork
-The BLE stack for AIM from UpWork\
+
+## Contents:
+1. [Device Configuration](README.md#Device-Configuration)
+2. [Steps to build and run the program](README.md#steps-to-build-and-run-the-program)
+3. [Receiving Data in Matlab](README.md#receiving-data-in-matlab)
+
+## Device Configuration 
 nRF52832 is in SPI slave and BLE peripheral mode. Current consumption is 6uA in advertising mode and 400uA 
 in data transmission mode. The device configurations are given below. 
 
@@ -52,3 +58,8 @@ RAM_START=0x20004650
 10. Copy the ble_app_spis_pca10040_s132.hex from "...\nRF5_SDK_17.1.0_ddde560\example\ble_peripheral\SPI2BLE-UpWork\pca10040\s132\ses\Output\Release\Exe" (or, "...\SPI2BLE-UpWork\pca10040\s132\ses\Output\Debug\Exe") and paste it inside "Merge_and_Zip" folder. Run "ble_spis_merge_zip_Generator.bat." This will create two files, i.e., "merge_ble_app_spis_pca10040_s132.hex" that contains the application and bootloader for wireless DFU, and "ble_app_spis_pca10040_s132.zip" for wireless DFU.
 11. To load HEX file, download and install [nRF Connect for desktop](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-desktop/Download#infotabs). Download and install [J-Link](https://www.segger.com/downloads/jlink/). Use [load_hex_nrf52832.docx](/Documents/) inside the "Document" folder of this repository to load "merge_ble_app_spis_pca10040_s132.hex" in AIM device. Follow step: d-to-g of [load_hex_nrf52832.docx](/Documents/) document to load hex file to any other nRF52832 device.
 12. To perform wireless DFU, the nRF52832 has to have OTA DFU bootloader. So before performing wireless DFU, the "merge_ble_app_spis_pca10040_s132.hex" has to be loaded to nRF52832 device at least once by following step 12. After that, follow [BLE DFU.docx](/Documents/) document in the "Documents" folder of this repository to perform wireless DFU.
+
+## Receiving Data in Matlab
+1. Run "checkAvailableBLEDevices.m" from [MatlabReceiveCode](/MatlabReceiveCode/) folder. After Run completes, copy the AIM21 device address from command window.
+2. Open "ble_connect_ES.m" and paste the AIM21 device address inside "ble" function on line 3. If the AIM21 device address is "E88AFE919714" the "ble" function on line 3 should look like this: b = ble("E88AFE919714"); 
+3. Run "connect_V5_ES" from [MatlabReceiveCode](/MatlabReceiveCode/) folder.
