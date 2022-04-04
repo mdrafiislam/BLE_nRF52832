@@ -60,6 +60,7 @@ RAM_START=0x20004650
 12. To perform wireless DFU, the nRF52832 has to have OTA DFU bootloader. So before performing wireless DFU, the "merge_ble_app_spis_pca10040_s132.hex" has to be loaded to nRF52832 device at least once by following step 12. After that, follow [BLE DFU.docx](/Documents/) document in the "Documents" folder of this repository to perform wireless DFU.
 
 ## Receiving Data in Matlab
-1. Run "checkAvailableBLEDevices.m" from [MatlabReceiveCode](/MatlabReceiveCode/) folder. After Run completes, copy the AIM21 device address from command window.
+**All Matlab codes are in [MatlabReceiveCode](/MatlabReceiveCode/) folder.
+1. Run "checkAvailableBLEDevices.m". After Run completes, copy the AIM21 device address from command window.
 2. Open "ble_connect_ES.m" and paste the AIM21 device address inside "ble" function on line 3. If the AIM21 device address is "E88AFE919714" the "ble" function on line 3 should look like this: b = ble("E88AFE919714"); 
-3. Run "connect_V5_ES" from [MatlabReceiveCode](/MatlabReceiveCode/) folder.
+3. Run "connect_V5_ES.m"
