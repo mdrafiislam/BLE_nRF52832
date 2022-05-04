@@ -63,5 +63,5 @@ RAM_START=0x20004650
 ## Receiving Data in Matlab
 **All Matlab codes are in [MatlabReceiveCode](/MatlabReceiveCode/) folder.
 1. Run "checkAvailableBLEDevices.m". After Run completes, copy the AIM21 device address from command window.
-2. Open "ble_connect_ES.m" and paste the AIM21 device address inside "ble" function on line 3. If the AIM21 device address is "E88AFE919714" the "ble" function on line 3 should look like this: b = ble("E88AFE919714"); 
-3. Run "connect_V5_ES.m"
+2. Open "ble_connect.m" and paste the AIM21 device address inside "ble" function on line 3. If the AIM21 device address is "E88AFE919714" the "ble" function on line 3 should look like this: b = ble("E88AFE919714"); 
+3. Run "connect_V5.m"
