@@ -1,6 +1,6 @@
 Output/Release/Obj/ble_app_spis_pca10040_s132/bsp.o: \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\components\libraries\bsp\bsp.c \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\components\libraries\bsp\bsp.h \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\components\libraries\bsp\bsp.c \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\components\libraries\bsp\bsp.h \
  C\:/Program\ Files/SEGGER/SEGGER\ Embedded\ Studio\ for\ ARM\ 5.34/include/stdint.h \
  C\:/Program\ Files/SEGGER/SEGGER\ Embedded\ Studio\ for\ ARM\ 5.34/include/stdbool.h \
  ../../../../../../components/boards/boards.h \
@@ -57,7 +57,7 @@ Output/Release/Obj/ble_app_spis_pca10040_s132/bsp.o: \
  ../../../../../../components/boards/pca10040.h \
  ../../../../../../components/libraries/button/app_button.h \
  ../../../../../../components/libraries/util/app_error.h \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\components\libraries\bsp\bsp_config.h \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\components\libraries\bsp\bsp_config.h \
  ../../../../../../components/libraries/timer/app_timer.h \
  ../../../../../../components/libraries/log/nrf_log_instance.h \
  ../../../../../../components/libraries/experimental_section_vars/nrf_section.h \

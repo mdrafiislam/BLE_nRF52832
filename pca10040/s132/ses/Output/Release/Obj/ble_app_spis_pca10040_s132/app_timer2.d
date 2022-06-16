@@ -1,6 +1,6 @@
 Output/Release/Obj/ble_app_spis_pca10040_s132/app_timer2.o: \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\components\libraries\timer\app_timer2.c \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\components\libraries\timer\app_timer.h \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\components\libraries\timer\app_timer2.c \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\components\libraries\timer\app_timer.h \
  ../config/sdk_config.h \
  ../../../../../../components/libraries/util/app_error.h \
  C\:/Program\ Files/SEGGER/SEGGER\ Embedded\ Studio\ for\ ARM\ 5.34/include/stdint.h \
@@ -69,5 +69,5 @@ Output/Release/Obj/ble_app_spis_pca10040_s132/app_timer2.o: \
  ../../../../../../components/libraries/util/sdk_macros.h \
  ../../../../../../components/libraries/log/src/nrf_log_internal.h \
  ../../../../../../components/libraries/log/nrf_log_types.h \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\components\libraries\timer\drv_rtc.h \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\components\libraries\timer\drv_rtc.h \
  ../../../../../../modules/nrfx/hal/nrf_rtc.h

@@ -1,5 +1,5 @@
 Output/Release/Obj/ble_app_spis_pca10040_s132/nrf_atflags.o: \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\components\libraries\atomic_flags\nrf_atflags.c \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\components\libraries\atomic_flags\nrf_atflags.c \
  ../../../../../../modules/nrfx/mdk/nrf.h \
  ../../../../../../modules/nrfx/mdk/nrf52.h \
  ../../../../../../components/toolchain/cmsis/include/core_cm4.h \
@@ -30,4 +30,4 @@ Output/Release/Obj/ble_app_spis_pca10040_s132/nrf_atflags.o: \
  ../../../../../../components/softdevice/s132/headers/nrf_svc.h \
  ../../../../../../components/libraries/util/sdk_macros.h \
  ../../../../../../components/libraries/util/nrf_assert.h \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\components\libraries\atomic_flags\nrf_atflags.h
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\components\libraries\atomic_flags\nrf_atflags.h

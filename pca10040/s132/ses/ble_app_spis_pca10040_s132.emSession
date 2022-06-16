@@ -15,8 +15,7 @@
   <ProjectSessionItem path="ble_app_spis_pca10040_s132;ble_app_spis_pca10040_s132"/>
   <ProjectSessionItem path="ble_app_spis_pca10040_s132;ble_app_spis_pca10040_s132;Application"/>
   <ProjectSessionItem path="ble_app_spis_pca10040_s132;ble_app_spis_pca10040_s132;Board Support"/>
-  <ProjectSessionItem path="ble_app_spis_pca10040_s132;ble_app_spis_pca10040_s132;nRF_Drivers"/>
-  <ProjectSessionItem path="ble_app_spis_pca10040_s132;ble_app_spis_pca10040_s132;nRF_Libraries"/>
+  <ProjectSessionItem path="ble_app_spis_pca10040_s132;ble_app_spis_pca10040_s132;nRF_BLE_Services"/>
  </Project>
  <Register1/>
  <Register2/>
@@ -41,14 +40,12 @@
   <Watches active="0" update="Never"/>
  </Watch4>
  <Files>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="424" useTextEdit="1" openedFrom="" useBinaryEdit="0" left="0" path="../../../main.c" selected="0" top="80" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="432" useTextEdit="1" openedFrom="" useBinaryEdit="0" left="0" path="../../../main.c" selected="0" top="417" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="186" useTextEdit="1" openedFrom="D:/Misc/Backup/_npw/BLE_spis/Fw/nRF5_SDK_17.1.0_ddde560/examples/ble_peripheral/ble_app_spis/main.c" useBinaryEdit="0" left="0" path="../../../SS_SpiSlave.c" selected="0" top="157" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="18" useTextEdit="1" openedFrom="D:/Misc/Backup/_npw/BLE_spis/Fw/nRF5_SDK_17.1.0_ddde560/examples/ble_peripheral/ble_app_spis/SS_SpiSlave.c" useBinaryEdit="0" left="0" path="../../../SS_SpiSlave.h" selected="0" top="6" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="212" useTextEdit="1" openedFrom="D:/Misc/Backup/_npw/BLE_spis/Fw/nRF5_SDK_17.1.0_ddde560/examples/ble_peripheral/ble_app_spis/main.c" useBinaryEdit="0" left="0" path="../../../../../../components/libraries/bsp/bsp.c" selected="0" top="205" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="264" useTextEdit="1" openedFrom="G:/My Drive/PhD/BLE/nRF/SDK 17.1.0/nRF5_SDK_17.1.0_ddde560/examples/ble_peripheral/ble_app_spis/main.c" useBinaryEdit="0" left="0" path="../../../../../../components/libraries/scheduler/app_scheduler.c" selected="0" top="252" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="0" useTextEdit="1" openedFrom="" useBinaryEdit="0" left="0" path="../../../../../../components/libraries/scheduler/app_scheduler.h" selected="0" top="196" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="0" useTextEdit="1" openedFrom="" useBinaryEdit="0" left="0" path="../../../SS_BleCmd.c" selected="0" top="85" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="26" y="11544" useTextEdit="1" openedFrom="" useBinaryEdit="0" left="0" path="../config/sdk_config.h" selected="1" top="11529" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="54" y="11540" useTextEdit="1" openedFrom="" useBinaryEdit="0" left="0" path="../config/sdk_config.h" selected="0" top="11532" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="64" useTextEdit="1" openedFrom="" useBinaryEdit="0" left="0" path="../../../../../../components/ble/ble_services/ble_nus/ble_nus.c" selected="0" top="51" codecName="Default"/>
  </Files>
- <ARMCrossStudioWindow activeProject="ble_app_spis_pca10040_s132" fileDialogDefaultFilter="*.c;*.cpp;*.cxx;*.cc;*.h;*.hpp;*.hxx" autoConnectTarget="J-Link" buildConfiguration="Release" sessionSettings="" debugSearchFileMap="" fileDialogInitialDirectory="D:/Miscellaneous/Backup/pWS/BLE_spis/Fw/nRF5_SDK_17.1.0_ddde560/examples/ble_peripheral/ble_app_spis" debugSearchPath="" autoConnectCapabilities="3199"/>
+ <ARMCrossStudioWindow activeProject="ble_app_spis_pca10040_s132" fileDialogDefaultFilter="*.c;*.cpp;*.cxx;*.cc;*.h;*.hpp;*.hxx" autoConnectTarget="J-Link" buildConfiguration="Release" sessionSettings="" debugSearchFileMap="" fileDialogInitialDirectory="D:/Miscellaneous/Backup/pWS/BLE_spis/Fw/nRF5_SDK_17.1.0_ddde560/examples/ble_peripheral/ble_app_spis" debugSearchPath="" autoConnectCapabilities="3711"/>
 </session>

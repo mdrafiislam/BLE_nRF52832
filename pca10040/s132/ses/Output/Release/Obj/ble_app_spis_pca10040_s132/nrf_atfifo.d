@@ -1,5 +1,5 @@
 Output/Release/Obj/ble_app_spis_pca10040_s132/nrf_atfifo.o: \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\components\libraries\atomic_fifo\nrf_atfifo.c \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\components\libraries\atomic_fifo\nrf_atfifo.c \
  C\:/Program\ Files/SEGGER/SEGGER\ Embedded\ Studio\ for\ ARM\ 5.34/include/string.h \
  C\:/Program\ Files/SEGGER/SEGGER\ Embedded\ Studio\ for\ ARM\ 5.34/include/__crossworks.h \
  C\:/Program\ Files/SEGGER/SEGGER\ Embedded\ Studio\ for\ ARM\ 5.34/include/stdint.h \
@@ -22,7 +22,7 @@ Output/Release/Obj/ble_app_spis_pca10040_s132/nrf_atfifo.o: \
  ../../../../../../modules/nrfx/mdk/compiler_abstraction.h \
  ../../../../../../components/softdevice/s132/headers/nrf52/nrf_mbr.h \
  ../../../../../../components/softdevice/s132/headers/nrf_svc.h \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\components\libraries\atomic_fifo\nrf_atfifo.h \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\components\libraries\atomic_fifo\nrf_atfifo.h \
  ../config/sdk_config.h \
  ../../../../../../components/libraries/util/nordic_common.h \
  ../../../../../../components/libraries/util/nrf_assert.h \
@@ -31,7 +31,7 @@ Output/Release/Obj/ble_app_spis_pca10040_s132/nrf_atfifo.o: \
  ../../../../../../components/libraries/log/nrf_log_instance.h \
  ../../../../../../components/libraries/experimental_section_vars/nrf_section.h \
  ../../../../../../components/libraries/log/nrf_log_types.h \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\components\libraries\atomic_fifo\nrf_atfifo_internal.h \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\components\libraries\atomic_fifo\nrf_atfifo_internal.h \
  ../../../../../../components/libraries/log/nrf_log.h \
  ../../../../../../components/libraries/util/sdk_common.h \
  ../../../../../../components/libraries/util/sdk_os.h \

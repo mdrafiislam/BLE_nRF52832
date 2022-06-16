@@ -1,6 +1,6 @@
 Output/Release/Obj/ble_app_spis_pca10040_s132/nrf_drv_spis.o: \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\integration\nrfx\legacy\nrf_drv_spis.c \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\integration\nrfx\legacy\nrf_drv_spis.h \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\integration\nrfx\legacy\nrf_drv_spis.c \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\integration\nrfx\legacy\nrf_drv_spis.h \
  ../../../../../../modules/nrfx/drivers/include/nrfx_spis.h \
  ../../../../../../modules/nrfx/nrfx.h \
  ../../../../../../integration/nrfx/nrfx_config.h ../config/sdk_config.h \

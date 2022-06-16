@@ -1,5 +1,5 @@
 Output/Release/Obj/ble_app_spis_pca10040_s132/app_fifo.o: \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\components\libraries\fifo\app_fifo.c \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\components\libraries\fifo\app_fifo.c \
  ../../../../../../components/libraries/util/sdk_common.h \
  C\:/Program\ Files/SEGGER/SEGGER\ Embedded\ Studio\ for\ ARM\ 5.34/include/stdint.h \
  C\:/Program\ Files/SEGGER/SEGGER\ Embedded\ Studio\ for\ ARM\ 5.34/include/stdbool.h \
@@ -29,5 +29,5 @@ Output/Release/Obj/ble_app_spis_pca10040_s132/app_fifo.o: \
  ../../../../../../components/softdevice/s132/headers/nrf_svc.h \
  ../../../../../../components/libraries/util/sdk_macros.h \
  ../../../../../../components/libraries/util/nrf_assert.h \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\components\libraries\fifo\app_fifo.h \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\components\libraries\fifo\app_fifo.h \
  C\:/Program\ Files/SEGGER/SEGGER\ Embedded\ Studio\ for\ ARM\ 5.34/include/stdlib.h

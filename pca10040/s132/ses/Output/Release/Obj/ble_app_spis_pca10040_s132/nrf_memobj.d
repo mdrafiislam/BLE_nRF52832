@@ -1,6 +1,6 @@
 Output/Release/Obj/ble_app_spis_pca10040_s132/nrf_memobj.o: \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\components\libraries\memobj\nrf_memobj.c \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\components\libraries\memobj\nrf_memobj.h \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\components\libraries\memobj\nrf_memobj.c \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\components\libraries\memobj\nrf_memobj.h \
  C\:/Program\ Files/SEGGER/SEGGER\ Embedded\ Studio\ for\ ARM\ 5.34/include/stdint.h \
  C\:/Program\ Files/SEGGER/SEGGER\ Embedded\ Studio\ for\ ARM\ 5.34/include/stdlib.h \
  C\:/Program\ Files/SEGGER/SEGGER\ Embedded\ Studio\ for\ ARM\ 5.34/include/__crossworks.h \

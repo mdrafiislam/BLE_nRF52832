@@ -1,6 +1,6 @@
 Output/Release/Obj/ble_app_spis_pca10040_s132/ble_advdata.o: \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\components\ble\common\ble_advdata.c \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\components\ble\common\ble_advdata.h \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\components\ble\common\ble_advdata.c \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\components\ble\common\ble_advdata.h \
  C\:/Program\ Files/SEGGER/SEGGER\ Embedded\ Studio\ for\ ARM\ 5.34/include/stdint.h \
  C\:/Program\ Files/SEGGER/SEGGER\ Embedded\ Studio\ for\ ARM\ 5.34/include/stdbool.h \
  C\:/Program\ Files/SEGGER/SEGGER\ Embedded\ Studio\ for\ ARM\ 5.34/include/string.h \
@@ -43,7 +43,7 @@ Output/Release/Obj/ble_app_spis_pca10040_s132/ble_advdata.o: \
  ../../../../../../components/libraries/util/sdk_macros.h \
  ../../../../../../components/libraries/util/nrf_assert.h \
  ../../../../../../components/softdevice/s132/headers/ble_gap.h \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\components\ble\common\ble_srv_common.h \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\components\ble\common\ble_srv_common.h \
  ../../../../../../components/softdevice/s132/headers/ble_types.h \
  ../../../../../../components/libraries/util/app_util.h \
  ../../../../../../components/softdevice/s132/headers/ble_gatt.h

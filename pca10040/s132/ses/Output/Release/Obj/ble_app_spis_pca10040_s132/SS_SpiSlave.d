@@ -1,5 +1,5 @@
 Output/Release/Obj/ble_app_spis_pca10040_s132/SS_SpiSlave.o: \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\examples\ble_peripheral\ble_app_spis\SS_SpiSlave.c \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\examples\ble_peripheral\SPI2BLE-UpWork\SS_SpiSlave.c \
  ../config/sdk_config.h \
  ../../../../../../integration/nrfx/legacy/nrf_drv_spis.h \
  ../../../../../../modules/nrfx/drivers/include/nrfx_spis.h \
@@ -77,4 +77,4 @@ Output/Release/Obj/ble_app_spis_pca10040_s132/SS_SpiSlave.o: \
  ../../../../../../components/libraries/log/src/nrf_log_ctrl_internal.h \
  ../../../../../../components/libraries/log/nrf_log_backend_interface.h \
  ../../../../../../components/libraries/log/nrf_log_default_backends.h \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\examples\ble_peripheral\ble_app_spis\SS_SpiSlave.h
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\examples\ble_peripheral\SPI2BLE-UpWork\SS_SpiSlave.h

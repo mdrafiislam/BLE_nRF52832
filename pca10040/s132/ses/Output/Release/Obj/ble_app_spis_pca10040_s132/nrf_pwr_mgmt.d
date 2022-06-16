@@ -1,5 +1,5 @@
 Output/Release/Obj/ble_app_spis_pca10040_s132/nrf_pwr_mgmt.o: \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\components\libraries\pwr_mgmt\nrf_pwr_mgmt.c \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\components\libraries\pwr_mgmt\nrf_pwr_mgmt.c \
  ../../../../../../components/libraries/util/sdk_common.h \
  C\:/Program\ Files/SEGGER/SEGGER\ Embedded\ Studio\ for\ ARM\ 5.34/include/stdint.h \
  C\:/Program\ Files/SEGGER/SEGGER\ Embedded\ Studio\ for\ ARM\ 5.34/include/stdbool.h \
@@ -29,7 +29,7 @@ Output/Release/Obj/ble_app_spis_pca10040_s132/nrf_pwr_mgmt.o: \
  ../../../../../../components/softdevice/s132/headers/nrf_svc.h \
  ../../../../../../components/libraries/util/sdk_macros.h \
  ../../../../../../components/libraries/util/nrf_assert.h \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\components\libraries\pwr_mgmt\nrf_pwr_mgmt.h \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\components\libraries\pwr_mgmt\nrf_pwr_mgmt.h \
  ../../../../../../components/libraries/util/sdk_errors.h \
  ../../../../../../components/libraries/experimental_section_vars/nrf_section_iter.h \
  ../../../../../../components/libraries/experimental_section_vars/nrf_section.h \

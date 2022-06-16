@@ -1,5 +1,5 @@
 Output/Release/Obj/ble_app_spis_pca10040_s132/hardfault_implementation.o: \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\components\libraries\hardfault\hardfault_implementation.c \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\components\libraries\hardfault\hardfault_implementation.c \
  ../../../../../../components/libraries/util/sdk_common.h \
  C\:/Program\ Files/SEGGER/SEGGER\ Embedded\ Studio\ for\ ARM\ 5.34/include/stdint.h \
  C\:/Program\ Files/SEGGER/SEGGER\ Embedded\ Studio\ for\ ARM\ 5.34/include/stdbool.h \

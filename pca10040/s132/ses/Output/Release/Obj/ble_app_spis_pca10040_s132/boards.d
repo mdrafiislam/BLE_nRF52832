@@ -1,6 +1,6 @@
 Output/Release/Obj/ble_app_spis_pca10040_s132/boards.o: \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\components\boards\boards.c \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\components\boards\boards.h \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\components\boards\boards.c \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\components\boards\boards.h \
  ../../../../../../modules/nrfx/hal/nrf_gpio.h \
  ../../../../../../modules/nrfx/nrfx.h \
  ../../../../../../integration/nrfx/nrfx_config.h ../config/sdk_config.h \
@@ -53,4 +53,4 @@ Output/Release/Obj/ble_app_spis_pca10040_s132/boards.o: \
  ../../../../../../components/softdevice/s132/headers/nrf_sd_def.h \
  ../../../../../../components/softdevice/s132/headers/nrf_soc.h \
  ../../../../../../modules/nrfx/drivers/nrfx_errors.h \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\components\boards\pca10040.h
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\components\boards\pca10040.h

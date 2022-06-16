@@ -1,5 +1,5 @@
 Output/Release/Obj/ble_app_spis_pca10040_s132/ble_conn_params.o: \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\components\ble\common\ble_conn_params.c \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\components\ble\common\ble_conn_params.c \
  ../../../../../../components/libraries/util/sdk_common.h \
  C\:/Program\ Files/SEGGER/SEGGER\ Embedded\ Studio\ for\ ARM\ 5.34/include/stdint.h \
  C\:/Program\ Files/SEGGER/SEGGER\ Embedded\ Studio\ for\ ARM\ 5.34/include/stdbool.h \
@@ -34,7 +34,7 @@ Output/Release/Obj/ble_app_spis_pca10040_s132/ble_conn_params.o: \
  ../../../../../../components/softdevice/s132/headers/ble_hci.h \
  ../../../../../../components/softdevice/s132/headers/ble_err.h \
  ../../../../../../components/softdevice/s132/headers/nrf_error.h \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\components\ble\common\ble_conn_params.h \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\components\ble\common\ble_conn_params.h \
  ../../../../../../components/softdevice/s132/headers/ble.h \
  ../../../../../../components/softdevice/s132/headers/nrf_svc.h \
  ../../../../../../components/softdevice/s132/headers/ble_err.h \
@@ -46,12 +46,12 @@ Output/Release/Obj/ble_app_spis_pca10040_s132/ble_conn_params.o: \
  ../../../../../../components/softdevice/s132/headers/ble_gatt.h \
  ../../../../../../components/softdevice/s132/headers/ble_gattc.h \
  ../../../../../../components/softdevice/s132/headers/ble_gatts.h \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\components\ble\common\ble_srv_common.h \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\components\ble\common\ble_srv_common.h \
  ../../../../../../components/softdevice/s132/headers/ble_types.h \
  ../../../../../../components/libraries/util/app_util.h \
  ../../../../../../components/softdevice/s132/headers/ble_gap.h \
  ../../../../../../components/softdevice/s132/headers/ble_gatt.h \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\components\ble\common\ble_conn_state.h \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\components\ble\common\ble_conn_state.h \
  ../../../../../../components/libraries/atomic/nrf_atomic.h \
  ../../../../../../components/softdevice/common/nrf_sdh_ble.h \
  ../../../../../../components/libraries/experimental_section_vars/nrf_section_iter.h \

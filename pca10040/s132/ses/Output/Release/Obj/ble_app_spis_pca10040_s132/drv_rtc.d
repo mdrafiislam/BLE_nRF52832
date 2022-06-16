@@ -1,5 +1,5 @@
 Output/Release/Obj/ble_app_spis_pca10040_s132/drv_rtc.o: \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\components\libraries\timer\drv_rtc.c \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\components\libraries\timer\drv_rtc.c \
  ../../../../../../modules/nrfx/nrfx.h \
  ../../../../../../integration/nrfx/nrfx_config.h ../config/sdk_config.h \
  ../../../../../../modules/nrfx/drivers/nrfx_common.h \

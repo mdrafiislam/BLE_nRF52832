@@ -1,6 +1,6 @@
 Output/Release/Obj/ble_app_spis_pca10040_s132/ble_srv_common.o: \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\components\ble\common\ble_srv_common.c \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\components\ble\common\ble_srv_common.h \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\components\ble\common\ble_srv_common.c \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\components\ble\common\ble_srv_common.h \
  C\:/Program\ Files/SEGGER/SEGGER\ Embedded\ Studio\ for\ ARM\ 5.34/include/stdint.h \
  C\:/Program\ Files/SEGGER/SEGGER\ Embedded\ Studio\ for\ ARM\ 5.34/include/stdbool.h \
  ../../../../../../components/softdevice/s132/headers/ble_types.h \

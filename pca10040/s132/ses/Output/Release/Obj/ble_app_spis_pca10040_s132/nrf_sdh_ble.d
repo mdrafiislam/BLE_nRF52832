@@ -1,5 +1,5 @@
 Output/Release/Obj/ble_app_spis_pca10040_s132/nrf_sdh_ble.o: \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\components\softdevice\common\nrf_sdh_ble.c \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\components\softdevice\common\nrf_sdh_ble.c \
  ../../../../../../components/libraries/util/sdk_common.h \
  C\:/Program\ Files/SEGGER/SEGGER\ Embedded\ Studio\ for\ ARM\ 5.34/include/stdint.h \
  C\:/Program\ Files/SEGGER/SEGGER\ Embedded\ Studio\ for\ ARM\ 5.34/include/stdbool.h \
@@ -29,7 +29,7 @@ Output/Release/Obj/ble_app_spis_pca10040_s132/nrf_sdh_ble.o: \
  ../../../../../../components/softdevice/s132/headers/nrf_svc.h \
  ../../../../../../components/libraries/util/sdk_macros.h \
  ../../../../../../components/libraries/util/nrf_assert.h \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\components\softdevice\common\nrf_sdh_ble.h \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\components\softdevice\common\nrf_sdh_ble.h \
  ../../../../../../components/libraries/util/app_util.h \
  ../../../../../../components/softdevice/s132/headers/ble.h \
  ../../../../../../components/softdevice/s132/headers/nrf_svc.h \
@@ -48,7 +48,7 @@ Output/Release/Obj/ble_app_spis_pca10040_s132/nrf_sdh_ble.o: \
  ../../../../../../components/libraries/util/nordic_common.h \
  ../../../../../../components/libraries/util/nrf_assert.h \
  ../../../../../../components/libraries/util/sdk_errors.h \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\components\softdevice\common\nrf_sdh.h \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\components\softdevice\common\nrf_sdh.h \
  ../../../../../../components/libraries/util/app_error.h \
  C\:/Program\ Files/SEGGER/SEGGER\ Embedded\ Studio\ for\ ARM\ 5.34/include/stdio.h \
  ../../../../../../components/libraries/util/app_error_weak.h \

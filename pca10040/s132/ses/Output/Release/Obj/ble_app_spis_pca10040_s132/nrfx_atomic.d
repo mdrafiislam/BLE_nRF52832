@@ -1,6 +1,6 @@
 Output/Release/Obj/ble_app_spis_pca10040_s132/nrfx_atomic.o: \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\modules\nrfx\soc\nrfx_atomic.c \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\modules\nrfx\soc\nrfx_atomic.h \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\modules\nrfx\soc\nrfx_atomic.c \
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\modules\nrfx\soc\nrfx_atomic.h \
  ../../../../../../modules/nrfx/nrfx.h \
  ../../../../../../integration/nrfx/nrfx_config.h ../config/sdk_config.h \
  ../../../../../../modules/nrfx/drivers/nrfx_common.h \
@@ -52,4 +52,4 @@ Output/Release/Obj/ble_app_spis_pca10040_s132/nrfx_atomic.o: \
  ../../../../../../components/softdevice/s132/headers/nrf_sd_def.h \
  ../../../../../../components/softdevice/s132/headers/nrf_soc.h \
  ../../../../../../modules/nrfx/drivers/nrfx_errors.h \
- G\:\My\ Drive\PhD\BLE\nRF\SDK\ 17.1.0\nRF5_SDK_17.1.0_ddde560\modules\nrfx\soc\nrfx_atomic_internal.h
+ C\:\Users\mislam24\Documents\GitHub\sdk17.1.0\modules\nrfx\soc\nrfx_atomic_internal.h
