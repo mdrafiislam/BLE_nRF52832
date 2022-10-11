@@ -613,6 +613,8 @@ int main(void)
     advertising_init();
     conn_params_init();
     conn_evt_len_ext_set(true);
+    //enable DCDC Converter
+    sd_power_dcdc_mode_set(NRF_POWER_DCDC_ENABLE); 
 
     // Start execution.
     advertising_start();
