@@ -16,7 +16,8 @@
 
 #include <stdint.h>
 
-#define SPIS_DATA_BUFFER_SIZE       244 // Bytes
+#define SPIS_DATA_RX_BUFFER_SIZE       244 // Bytes
+#define SPIS_DATA_TX_BUFFER_SIZE       10 // Bytes
 
 /**
  * @brief User event handler prototype to receive SPI slave data.

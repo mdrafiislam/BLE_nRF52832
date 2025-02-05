@@ -30,9 +30,11 @@
 /*******************************************************************************/
 static const nrf_drv_spis_t spis = NRF_DRV_SPIS_INSTANCE(SPIS_INSTANCE);    /**< SPIS instance. */
 
-static uint8_t       m_tx_buf[SPIS_DATA_BUFFER_SIZE];                     /**< TX buffer. */
-static uint8_t       m_rx_buf[SPIS_DATA_BUFFER_SIZE];                       /**< RX buffer. */
-static const uint8_t m_length = SPIS_DATA_BUFFER_SIZE;                           /**< Transfer length. */
+static uint8_t       m_tx_buf[SPIS_DATA_TX_BUFFER_SIZE];                     /**< TX buffer. */
+static uint8_t       m_rx_buf[SPIS_DATA_RX_BUFFER_SIZE];                       /**< RX buffer. */
+static const uint8_t m_rx_length = SPIS_DATA_RX_BUFFER_SIZE;                           /**< Transfer RX length. */
+static const uint8_t m_tx_length = SPIS_DATA_TX_BUFFER_SIZE;                           /**< Transfer TX length. */
+
 static SS_DATA_RECEIVE_CB _SpiSlaveDataRxCb = NULL;
 static uint16_t      _connHandle = BLE_CONN_HANDLE_INVALID;                 /**< Handle of the current connection. */
 static bool         _spiSlaveInit = false;
@@ -61,11 +63,11 @@ static void SSi_SpisScheduledEvent(void *pData, uint16_t length)
 
         if (_connHandle != BLE_CONN_HANDLE_INVALID)
         {
-            m_tx_buf[m_length - 1] = 0x01;
+            m_tx_buf[m_tx_length - 1] = 0x01;
         }
         else
         {
-            m_tx_buf[m_length - 1] = 0x00;
+            m_tx_buf[m_tx_length - 1] = 0x00;
         }
 
         nrf_drv_spis_buffers_set(&spis, m_tx_buf, sizeof(m_tx_buf), m_rx_buf, sizeof(m_rx_buf));
@@ -110,11 +112,11 @@ ret_code_t SS_SetTxbuffer(uint8_t *pData, uint16_t length)
 
     if (_connHandle != BLE_CONN_HANDLE_INVALID)
     {
-        m_tx_buf[m_length - 1] = 0x01;
+        m_tx_buf[m_tx_length - 1] = 0x01;
     }
     else
     {
-        m_tx_buf[m_length - 1] = 0x00;
+        m_tx_buf[m_tx_length - 1] = 0x00;
     }
 
     if (_spiSlaveInit == true)
@@ -172,16 +174,16 @@ ret_code_t SS_InitSpiSlave(SS_DATA_RECEIVE_CB dataRxCb)
 
     _spiSlaveInit = true;
 
-    memset(m_rx_buf, 0, m_length);
+    memset(m_rx_buf, 0, m_rx_length);
     memset(m_tx_buf, 0, sizeof(m_tx_buf));
 
     if (_connHandle != BLE_CONN_HANDLE_INVALID)
     {
-        m_tx_buf[m_length - 1] = 0x01;
+        m_tx_buf[m_tx_length - 1] = 0x01;
     }
     else
     {
-        m_tx_buf[m_length - 1] = 0x00;
+        m_tx_buf[m_tx_length - 1] = 0x00;
     }
 
     err_code = nrf_drv_spis_buffers_set(&spis, m_tx_buf, sizeof(m_tx_buf), m_rx_buf, sizeof(m_rx_buf));
