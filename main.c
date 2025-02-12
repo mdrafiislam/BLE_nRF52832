@@ -96,10 +96,10 @@
 
 #define APP_ADV_DURATION                0                                           /**< The advertising duration (180 seconds) in units of 10 milliseconds. */
 
-#define MIN_CONN_INTERVAL               MSEC_TO_UNITS(120, UNIT_1_25_MS)             /**< Minimum acceptable connection interval (20 ms), Connection interval uses 1.25 ms units. */
-#define MAX_CONN_INTERVAL               MSEC_TO_UNITS(130, UNIT_1_25_MS)             /**< Maximum acceptable connection interval (75 ms), Connection interval uses 1.25 ms units. */
-#define SLAVE_LATENCY                   0                                           /**< Slave latency. */
-#define CONN_SUP_TIMEOUT                MSEC_TO_UNITS(4000, UNIT_10_MS)             /**< Connection supervisory timeout (4 seconds), Supervision Timeout uses 10 ms units. */
+#define MIN_CONN_INTERVAL               MSEC_TO_UNITS(60, UNIT_1_25_MS)             /**< Minimum acceptable connection interval (20 ms), Connection interval uses 1.25 ms units. */
+#define MAX_CONN_INTERVAL               MSEC_TO_UNITS(70, UNIT_1_25_MS)             /**< Maximum acceptable connection interval (75 ms), Connection interval uses 1.25 ms units. */
+#define SLAVE_LATENCY                   1                                           /**< Slave latency. */
+#define CONN_SUP_TIMEOUT                MSEC_TO_UNITS(16000, UNIT_10_MS)             /**< Connection supervisory timeout (4 seconds), Supervision Timeout uses 10 ms units. */
 #define FIRST_CONN_PARAMS_UPDATE_DELAY  APP_TIMER_TICKS(5000)                       /**< Time from initiating event (connect or start of notification) to first time sd_ble_gap_conn_param_update is called (5 seconds). */
 #define NEXT_CONN_PARAMS_UPDATE_DELAY   APP_TIMER_TICKS(30000)                      /**< Time between each call to sd_ble_gap_conn_param_update after the first call (30 seconds). */
 #define MAX_CONN_PARAMS_UPDATE_COUNT    3                                           /**< Number of attempts before giving up the connection parameter negotiation. */
@@ -124,8 +124,8 @@ static ble_uuid_t m_adv_uuids[]          =                                      
 {
     {BLE_UUID_NUS_SERVICE, NUS_SERVICE_UUID_TYPE}
 };
-static uint8_t _RxDataBuff[SPIS_DATA_BUFFER_SIZE];
-static uint8_t _TxDataBuff[SPIS_DATA_BUFFER_SIZE + 1];
+static uint8_t _RxDataBuff[SPIS_DATA_RX_BUFFER_SIZE];
+static uint8_t _TxDataBuff[SPIS_DATA_TX_BUFFER_SIZE + 1];
 
 static void DataTxOnBLE(uint8_t *pData, uint16_t length);
 
@@ -613,8 +613,8 @@ int main(void)
     advertising_init();
     conn_params_init();
     conn_evt_len_ext_set(true);
-    //enable DCDC Converter
-    sd_power_dcdc_mode_set(NRF_POWER_DCDC_ENABLE); 
+
+    sd_power_dcdc_mode_set(NRF_POWER_DCDC_ENABLE);
 
     // Start execution.
     advertising_start();
