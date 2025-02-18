@@ -71,6 +71,8 @@
 #include "app_scheduler.h"
 #include "nrf_drv_spis.h"
 
+#include "ble_dis.h" //Device Information Service (DIS) 
+
 #if defined (UART_PRESENT)
 #include "nrf_uart.h"
 #endif
@@ -122,7 +124,8 @@ static uint16_t   m_conn_handle          = BLE_CONN_HANDLE_INVALID;             
 static uint16_t   m_ble_nus_max_data_len = BLE_GATT_ATT_MTU_DEFAULT - 3;            /**< Maximum length of data (in bytes) that can be transmitted to the peer by the Nordic UART service module. */
 static ble_uuid_t m_adv_uuids[]          =                                          /**< Universally unique service identifier. */
 {
-    {BLE_UUID_NUS_SERVICE, NUS_SERVICE_UUID_TYPE}
+    {BLE_UUID_NUS_SERVICE, NUS_SERVICE_UUID_TYPE},
+    {BLE_UUID_DEVICE_INFORMATION_SERVICE, BLE_UUID_TYPE_BLE} // Add DIS UUID
 };
 static uint8_t _RxDataBuff[SPIS_DATA_RX_BUFFER_SIZE];
 static uint8_t _TxDataBuff[SPIS_DATA_TX_BUFFER_SIZE + 1];
@@ -586,6 +589,22 @@ static void gpio_cfg(void)
 }
 
 
+/**@brief Function to set up and enable the DIS service
+ */
+static void dis_init(void) {
+    ble_dis_init_t dis_init_obj;
+    memset(&dis_init_obj, 0, sizeof(dis_init_obj));
+
+    //ble_srv_ascii_to_utf8(&dis_init_obj.manufact_name_str, "Nordic Semiconductor");
+    ble_srv_ascii_to_utf8(&dis_init_obj.fw_rev_str, "20q_16cst_1sl_63ci_10rot_DIS"); // Set firmware version
+    ble_srv_ascii_to_utf8(&dis_init_obj.hw_rev_str, "Rev A");
+    ble_srv_ascii_to_utf8(&dis_init_obj.model_num_str, "nRF52832");
+
+    dis_init_obj.dis_char_rd_sec = 1;
+
+    uint32_t err_code = ble_dis_init(&dis_init_obj);
+    APP_ERROR_CHECK(err_code);
+}
 
 /**@brief Application main function.
  */
@@ -613,6 +632,8 @@ int main(void)
     advertising_init();
     conn_params_init();
     conn_evt_len_ext_set(true);
+
+    dis_init();
 
     sd_power_dcdc_mode_set(NRF_POWER_DCDC_ENABLE);
 
