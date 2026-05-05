@@ -51,6 +51,7 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <stdio.h>
 #include "nordic_common.h"
 #include "nrf.h"
 #include "ble_hci.h"
@@ -209,20 +210,57 @@ static void nrf_qwr_error_handler(uint32_t nrf_error)
 /**@snippet [Handling the data received over BLE] */
 static void nus_data_handler(ble_nus_evt_t * p_evt)
 {
-    uint8_t len = sizeof(_TxDataBuff);
-
     if (p_evt->type == BLE_NUS_EVT_RX_DATA)
     {
         NRF_LOG_DEBUG("Received data from BLE NUS. Writing data on UART.");
         NRF_LOG_HEXDUMP_DEBUG(p_evt->params.rx_data.p_data, p_evt->params.rx_data.length);
 
+        // --- UT time-update command path ---
+        if (BC_IsUtPrefix(p_evt->params.rx_data.p_data, p_evt->params.rx_data.length))
+        {
+            NRF_LOG_INFO("UT time-update command received");
+
+            // Parse 16 hex chars (bytes 2-17) as big-endian uint64_t millisecond timestamp
+            uint64_t timestamp_ms = 0;
+            for (int i = 2; i < 18; i++)
+            {
+                uint8_t c = p_evt->params.rx_data.p_data[i];
+                uint8_t nibble;
+                if (c >= '0' && c <= '9')
+                    nibble = c - '0';
+                else if (c >= 'a' && c <= 'f')
+                    nibble = c - 'a' + 10;
+                else
+                    nibble = c - 'A' + 10;
+                timestamp_ms = (timestamp_ms << 4) | nibble;
+            }
+
+            // Convert to nearest-second unix timestamp
+            uint64_t unix_seconds = (timestamp_ms + 500ULL) / 1000ULL;
+
+            // Format as 8-char uppercase hex
+            char spi_payload[11];  // "UT" + 8 hex chars + null (null for safety only)
+            snprintf(spi_payload, sizeof(spi_payload), "UT%08lX", (unsigned long)unix_seconds);
+
+            // Send to STM32 via SPI (exactly 10 bytes: "UT" + 8 hex chars)
+            SS_SetTxbuffer((uint8_t *)spi_payload, 10);
+            NRF_LOG_INFO("UT SPI payload: %s", spi_payload);
+
+            return;  // Skip normal SPI forwarding and command processing
+        }
+
+        // --- Normal path: forward all non-UT data ---
+        uint16_t safe_len = (p_evt->params.rx_data.length < sizeof(_TxDataBuff))
+                            ? p_evt->params.rx_data.length
+                            : (sizeof(_TxDataBuff) - 1);
         memset(_TxDataBuff, 0, sizeof(_TxDataBuff));
-        memcpy(_TxDataBuff, &p_evt->params.rx_data.p_data[0], p_evt->params.rx_data.length);
+        memcpy(_TxDataBuff, p_evt->params.rx_data.p_data, safe_len);
 
-        _TxDataBuff[len - 1] = p_evt->params.rx_data.length + 1;
+        // Forward to SPI
+        SS_SetTxbuffer(_TxDataBuff, safe_len);
 
-        SS_SetTxbuffer(_TxDataBuff, sizeof(_TxDataBuff));
-        BC_ProcessBleCommand(_TxDataBuff, sizeof(_TxDataBuff));
+        // Check for STARTDFU / STARTRST commands
+        BC_ProcessBleCommand(_TxDataBuff, safe_len);
     }
 }
 /**@snippet [Handling the data received over BLE] */
