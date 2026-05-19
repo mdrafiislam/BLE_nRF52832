@@ -90,7 +90,7 @@
 
 #define APP_BLE_CONN_CFG_TAG            1                                           /**< A tag identifying the SoftDevice BLE configuration. */
 
-#define DEVICE_NAME                     "AIM21"                                     /**< Name of device. Will be included in the advertising data. */
+#define DEVICE_NAME                     "AIM22"                                     /**< Name of device. Will be included in the advertising data. */
 #define NUS_SERVICE_UUID_TYPE           BLE_UUID_TYPE_VENDOR_BEGIN                  /**< UUID type for the Nordic UART Service (vendor specific). */
 
 #define APP_BLE_OBSERVER_PRIO           3                                           /**< Application's BLE observer priority. You shouldn't need to modify this value. */
@@ -243,7 +243,11 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
             snprintf(spi_payload, sizeof(spi_payload), "UT%08lX", (unsigned long)unix_seconds);
 
             // Send to STM32 via SPI (exactly 10 bytes: "UT" + 8 hex chars)
-            SS_SetTxbuffer((uint8_t *)spi_payload, 10);
+            NRF_LOG_INFO("UT SPI payload bytes[0..4]: %02X %02X %02X %02X %02X",
+                         spi_payload[0], spi_payload[1], spi_payload[2], spi_payload[3], spi_payload[4]);
+            NRF_LOG_INFO("UT SPI payload bytes[5..9]: %02X %02X %02X %02X %02X",
+                         spi_payload[5], spi_payload[6], spi_payload[7], spi_payload[8], spi_payload[9]);
+            SS_SetTimeUpdateTxbuffer((uint8_t *)spi_payload, 10);
             NRF_LOG_INFO("UT SPI payload: %s", spi_payload);
 
             return;  // Skip normal SPI forwarding and command processing
@@ -634,8 +638,8 @@ static void dis_init(void) {
     memset(&dis_init_obj, 0, sizeof(dis_init_obj));
 
     //ble_srv_ascii_to_utf8(&dis_init_obj.manufact_name_str, "Nordic Semiconductor");
-    ble_srv_ascii_to_utf8(&dis_init_obj.fw_rev_str, "20q_16cst_1sl_63ci_10rot_DIS"); // Set firmware version
-    ble_srv_ascii_to_utf8(&dis_init_obj.hw_rev_str, "Rev A");
+    ble_srv_ascii_to_utf8(&dis_init_obj.fw_rev_str, "20q16cst1sl63ci10rotUT"); // Set firmware version
+    ble_srv_ascii_to_utf8(&dis_init_obj.hw_rev_str, "AIM21");
     ble_srv_ascii_to_utf8(&dis_init_obj.model_num_str, "nRF52832");
 
     dis_init_obj.dis_char_rd_sec = 1;

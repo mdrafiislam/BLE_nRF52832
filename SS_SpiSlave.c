@@ -127,6 +127,25 @@ ret_code_t SS_SetTxbuffer(uint8_t *pData, uint16_t length)
 
 /*******************************************************************************/
 /**
+ * @brief Function to setting time update Tx buffer of spi slave
+ *
+ * @param pData, pointer to the data to transfer
+ * @param length, length of data to transfer
+ *
+ * @return Return NRF_SUCCESS else error code
+ */
+ret_code_t SS_SetTimeUpdateTxbuffer(uint8_t *pData, uint16_t length)
+{
+    memcpy(m_tx_buf, pData, length);
+
+    if (_spiSlaveInit == true)
+    {
+        return nrf_drv_spis_buffers_set(&spis, m_tx_buf, sizeof(m_tx_buf), m_rx_buf, sizeof(m_rx_buf));
+    }
+}
+
+/*******************************************************************************/
+/**
  * @brief Function to uninitialize spi slave
  *
  * @param None
