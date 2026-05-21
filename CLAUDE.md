@@ -24,7 +24,7 @@ This is an nRF52832 firmware project implementing an SPI-to-BLE bridge using the
 ## Custom Source Files (in project root)
 
 - **`main.c`** (~693 lines) — Application entry point. Initializes all subsystems, runs the BLE event handler (`ble_evt_handler`), handles NUS data callbacks (`nus_data_handler`), manages DIS, and bridges SPI <-> BLE data.
-- **`SS_SpiSlave.c` / `SS_SpiSlave.h`** — SPI slave wrapper using SPIS instance 1. RX buffer: 244 bytes, TX buffer: 10 bytes (last byte = BLE connection status flag). Uses `app_scheduler` to defer SPI events to the main loop.
+- **`SS_SpiSlave.c` / `SS_SpiSlave.h`** — SPI slave wrapper using SPIS instance 1. RX buffer: 244 bytes, TX buffer: 10 bytes (normal traffic reserves last byte for BLE connection status; UT time responses use all 10 bytes). Uses `app_scheduler` to defer SPI events to the main loop.
 - **`SS_BleCmd.c` / `SS_BleCmd.h`** — BLE command processor. Recognizes "STARTDFU" (triggers bootloader via GPREGRET) and "STARTRST" (system reset after 2s delay). Validates "UT" prefix time-sync commands (18 bytes: "UT" + 16 hex chars representing milliseconds, converted to unix seconds).
 
 ## Architecture
@@ -42,7 +42,7 @@ External Master (SPI)                    nRF52832 (SPI2BLE)              BLE Cen
 ```
 
 **Two data directions:**
-1. **SPI -> BLE**: External master writes SPI -> nRF52 captures via SPIS -> sends over BLE NUS write callback
+1. **SPI -> BLE**: External master writes SPI -> nRF52 captures via SPIS -> sends over BLE NUS notification from the SPI receive callback
 2. **BLE -> SPI**: Central writes BLE NUS -> nRF52 receives -> forwards to external master via SPI MISO. Special "UT" prefix commands trigger time-sync response.
 
 **SPI Pin mapping** (from `sdk_config.h`): SCK=2, MISO=3, MOSI=29, CS=4. Mode 0.
@@ -57,7 +57,7 @@ External Master (SPI)                    nRF52832 (SPI2BLE)              BLE Cen
 # Build via script
 powershell -ExecutionPolicy Bypass -File .\build_nrf.ps1
 
-# Manual build (from SES project directory)
+# Manual build (from repository root)
 & "C:\Program Files\SEGGER\SEGGER Embedded Studio for ARM 5.34\bin\emBuild.exe" -config Debug -rebuild .\pca10040\s132\ses\ble_app_spis_pca10040_s132.emProject -verbose
 ```
 
@@ -65,10 +65,10 @@ powershell -ExecutionPolicy Bypass -File .\build_nrf.ps1
 
 **DFU merge pipeline** (from `Merge_and_zip/`):
 ```batch
-nrfutil settings generate --family NRF52 --application ble_app_spis_pca10040_s132.hex --application-version 0 --bootloader-version 0 --bl-settings-version 2 bl_settings.hex
+nrfutil settings generate --family NRF52 --application ble_app_spis_pca10040_s132.hex --application-version 0 --bootloader-version 0 --bl-settings-version 2 bl_setting.hex
 mergehex -m SD_hex\s132_nrf52_7.2.0_softdevice.hex ble_app_spis_pca10040_s132.hex -o SD_APP.hex
 mergehex -m SD_APP.hex BL_hex\secure_bootloader_ble_s132_pca10040.hex -o SD_APP_BL.hex
-mergehex -m SD_APP_BL.hex bl_settings.hex -o merge_ble_app_ble_app_spis_pca10040_s132.hex
+mergehex -m SD_APP_BL.hex bl_setting.hex -o merge_ble_app_ble_app_spis_pca10040_s132.hex
 nrfutil pkg generate --hw-version 52 --sd-req 0x0101 --application-version 1 --application ble_app_spis_pca10040_s132.hex --key-file Key\private.key ble_app_spis_pca10040_s132.zip
 ```
 
@@ -95,8 +95,8 @@ Run `Merge_and_zip\ble_spis_merge_zip_Generator.bat` to execute the full pipelin
 
 ## Important Notes
 
-- The `ble_nus.c` UUID must be manually set in SES (per README steps 5): `#define NUS_BASE_UUID {{0x31, 0xAC, 0x24, 0x85, 0x9B, 0x50, 0x22, 0xB5, 0xD3, 0x48, 0x2D, 0xD9, 0xA9, 0xD2, 0xA1, 0x4A}}` on line 64
-- DCDC can be enabled at runtime via `sd_power_dcdc_mode_set()` (disabled by default in `sdk_config.h`)
-- Advertising interval: 3200 units (2000ms). Connection interval: 63.5ms. Slave latency: 1.
+- The SDK `ble_nus.c` UUID is expected to be set to `#define NUS_BASE_UUID {{0x31, 0xAC, 0x24, 0x85, 0x9B, 0x50, 0x22, 0xB5, 0xD3, 0x48, 0x2D, 0xD9, 0xA9, 0xD2, 0xA1, 0x4A}}` on line 64; this is already true in this checkout, but must be checked when using a fresh SDK.
+- DCDC is enabled at runtime via `sd_power_dcdc_mode_set(NRF_POWER_DCDC_ENABLE)` (disabled by default in `sdk_config.h`)
+- Advertising interval: 3200 units (2000ms). Connection interval: 60-70ms. Slave latency: 1.
 - No test infrastructure exists — this is embedded firmware with no unit test framework.
 - Build artifacts in `pca10040/s132/ses/Output/` are gitignored.

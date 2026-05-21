@@ -65,9 +65,9 @@ This is an embedded firmware project for the **nRF52832** SoC that implements an
 
 # Firmware Rules
 
-- **SPI configuration**: SPIS instance 1, pins: SCK=2, MISO=3, MOSI=29, CS=4, Mode 0. RX buffer 244 bytes, TX buffer 10 bytes (last byte = BLE connection status flag).
+- **SPI configuration**: SPIS instance 1, pins: SCK=2, MISO=3, MOSI=29, CS=4, Mode 0. RX buffer 244 bytes, TX buffer 10 bytes (normal traffic reserves last byte for BLE connection status; UT time responses use all 10 bytes).
 - **BLE config**: Advertising interval 3200 units (2000ms). Connection interval 60–70ms. Slave latency 1. hvn_tx_queue_size 20.
-- **NUS UUID**: `6E400000-B5A3-F393-E0A9-E50E24DCCA9E`. The `NUS_BASE_UUID` in `ble_nus.c` (line 64) must be set to `{{0x31, 0xAC, 0x24, 0x85, 0x9B, 0x50, 0x22, 0xB5, 0xD3, 0x48, 0x2D, 0xD9, 0xA9, 0xD2, 0xA1, 0x4A}}` — this is a manual step per README.
+- **NUS UUID**: `6E400000-B5A3-F393-E0A9-E50E24DCCA9E`. The `NUS_BASE_UUID` in SDK `ble_nus.c` (line 64) is expected to be `{{0x31, 0xAC, 0x24, 0x85, 0x9B, 0x50, 0x22, 0xB5, 0xD3, 0x48, 0x2D, 0xD9, 0xA9, 0xD2, 0xA1, 0x4A}}`; this is already true in this checkout, but must be checked when using a fresh SDK.
 - **DIS**: Model="nRF52832", HW rev="AIM21", FW rev="20q16cst1sl63ci10rotUT". Added to advertising scan response.
 - **RAM layout**: `RAM_START=0x20004650` (moved from default `0x20002AD8` to avoid overlap with enlarged `hvn_tx_queue`). Flash app starts at `0x26000`.
 - **Command protocol**:
@@ -82,7 +82,7 @@ This is an embedded firmware project for the **nRF52832** SoC that implements an
 # Safety Rules for Copilot
 
 - Do not delete existing functionality unless explicitly asked.
-- Do not hardcode secrets, paths, credentials, or API keys. The file `Merge_and_zip/Key/private.key` is a signing key — never commit or expose it.
+- Do not hardcode secrets, paths, credentials, or API keys. The file `Merge_and_zip/Key/private.key` is a tracked DFU signing key in this repository — do not expose it outside the repo or duplicate it elsewhere.
 - Preserve existing public function signatures (`BC_*`, `SS_*`) unless a change is requested.
 - Prefer minimal, targeted edits to `main.c`, `SS_SpiSlave.c`, `SS_BleCmd.c`, and `sdk_config.h`.
 - Explain any major code change after editing, especially changes to BLE timing, SPI pin assignments, or memory layout.
