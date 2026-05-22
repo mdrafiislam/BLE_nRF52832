@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File ./build_nrf.ps1)"
-    ]
-  }
-}

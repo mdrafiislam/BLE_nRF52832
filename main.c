@@ -90,7 +90,7 @@
 
 #define APP_BLE_CONN_CFG_TAG            1                                           /**< A tag identifying the SoftDevice BLE configuration. */
 
-#define DEVICE_NAME                     "AIM22"                                     /**< Name of device. Will be included in the advertising data. */
+#define DEVICE_NAME                     "AIM21"                                     /**< Name of device. Will be included in the advertising data. */
 #define NUS_SERVICE_UUID_TYPE           BLE_UUID_TYPE_VENDOR_BEGIN                  /**< UUID type for the Nordic UART Service (vendor specific). */
 
 #define APP_BLE_OBSERVER_PRIO           3                                           /**< Application's BLE observer priority. You shouldn't need to modify this value. */
@@ -244,9 +244,17 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
 
             // Send to STM32 via SPI (exactly 10 bytes: "UT" + 8 hex chars)
             NRF_LOG_INFO("UT SPI payload bytes[0..4]: %02X %02X %02X %02X %02X",
-                         spi_payload[0], spi_payload[1], spi_payload[2], spi_payload[3], spi_payload[4]);
+                         (unsigned int)(uint8_t)spi_payload[0],
+                         (unsigned int)(uint8_t)spi_payload[1],
+                         (unsigned int)(uint8_t)spi_payload[2],
+                         (unsigned int)(uint8_t)spi_payload[3],
+                         (unsigned int)(uint8_t)spi_payload[4]);
             NRF_LOG_INFO("UT SPI payload bytes[5..9]: %02X %02X %02X %02X %02X",
-                         spi_payload[5], spi_payload[6], spi_payload[7], spi_payload[8], spi_payload[9]);
+                         (unsigned int)(uint8_t)spi_payload[5],
+                         (unsigned int)(uint8_t)spi_payload[6],
+                         (unsigned int)(uint8_t)spi_payload[7],
+                         (unsigned int)(uint8_t)spi_payload[8],
+                         (unsigned int)(uint8_t)spi_payload[9]);
             SS_SetTimeUpdateTxbuffer((uint8_t *)spi_payload, 10);
             NRF_LOG_INFO("UT SPI payload: %s", spi_payload);
 
@@ -254,9 +262,9 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
         }
 
         // --- Normal path: forward all non-UT data ---
-        uint16_t safe_len = (p_evt->params.rx_data.length < sizeof(_TxDataBuff))
+        uint16_t safe_len = (p_evt->params.rx_data.length < (SPIS_DATA_TX_BUFFER_SIZE - 1))
                             ? p_evt->params.rx_data.length
-                            : (sizeof(_TxDataBuff) - 1);
+                            : (SPIS_DATA_TX_BUFFER_SIZE - 1);
         memset(_TxDataBuff, 0, sizeof(_TxDataBuff));
         memcpy(_TxDataBuff, p_evt->params.rx_data.p_data, safe_len);
 

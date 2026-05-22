@@ -1,4 +1,5 @@
 pca10040/s132/ses/Output/
+*.emSession
 *.o
 *.d
 *.elf

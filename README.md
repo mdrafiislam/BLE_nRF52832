@@ -16,11 +16,11 @@ SPI Config: \
 CS Pin = 4\
 MISO Pin = 3\
 MOSI Pin = 29\
-SCK Pin = 4\
+SCK Pin = 2\
 Mode = 0\
 Other config = default\
-RX buffer = 10 bytes\
-TX buffer = 244 bytes\
+RX buffer = 244 bytes\
+TX buffer = 10 bytes (normal byte 9 is BLE connection status; UT time-update uses all 10 bytes)\
 SPIS_INSTANCE 1
 
 BLE Config:\
@@ -60,7 +60,7 @@ RAM_START=0x20004650
 3. Install [nRF Command Line Tools](https://www.nordicsemi.com/Products/Development-tools/nrf-command-line-tools/download). Add "bin" folder of the "nRF command line tool" to Environment Path Variable. Usual location of "bin" folder is: C:\Program Files\Nordic Semiconductor\nrf-command-line-tools\bin
 4. Copy the ble_app_spis_pca10040_s132.hex from "...\nRF5_SDK_17.1.0_ddde560\example\ble_peripheral\SPI2BLE-UpWork\pca10040\s132\ses\Output\Release\Exe" (or, "...\SPI2BLE-UpWork\pca10040\s132\ses\Output\Debug\Exe") and paste it inside "Merge_and_Zip" folder. Run "ble_spis_merge_zip_Generator.bat." This will create two files, i.e., "merge_ble_app_spis_pca10040_s132.hex" that contains the application and bootloader for wireless DFU, and "ble_app_spis_pca10040_s132.zip" for wireless DFU.
 5. To load HEX file, download and install [nRF Connect for desktop](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-desktop/Download#infotabs). Download and install [J-Link](https://www.segger.com/downloads/jlink/). Use [load_hex_nrf52832.docx](/Documents/) inside the "Document" folder of this repository to load "merge_ble_app_spis_pca10040_s132.hex" in AIM device. Follow step: d-to-g of [load_hex_nrf52832.docx](/Documents/) document to load hex file to any other nRF52832 device.
-6. To perform wireless DFU, the nRF52832 has to have OTA DFU bootloader. So before performing wireless DFU, the "merge_ble_app_spis_pca10040_s132.hex" has to be loaded to nRF52832 device at least once by following step 12. After that, follow [BLE DFU.docx](/Documents/) document in the "Documents" folder of this repository to perform wireless DFU.
+6. To perform wireless DFU, the nRF52832 has to have OTA DFU bootloader. So before performing wireless DFU, the "merge_ble_app_spis_pca10040_s132.hex" has to be loaded to nRF52832 device at least once by following step 5. After that, follow [BLE DFU.docx](/Documents/) document in the "Documents" folder of this repository to perform wireless DFU.
 
 ## Receiving Data in Matlab
 **All Matlab codes are in [MatlabReceiveCode](/MatlabReceiveCode/) folder.

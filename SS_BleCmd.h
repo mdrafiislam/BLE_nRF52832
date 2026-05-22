@@ -14,6 +14,7 @@
 #ifndef _SS_BLE_CMD_H
 #define _SS_BLE_CMD_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 /**

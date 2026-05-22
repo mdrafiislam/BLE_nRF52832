@@ -69,6 +69,8 @@ ret_code_t BC_ProcessBleCommand(uint8_t *pData, uint16_t length)
         NRF_LOG_INFO("Restart device");
         app_timer_start(_bleCmdTmId, APP_TIMER_TICKS(2000), NULL);
     }
+
+    return NRF_SUCCESS;
 }
 
 /*******************************************************************************/
