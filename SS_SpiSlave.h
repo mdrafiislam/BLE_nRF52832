@@ -58,7 +58,10 @@ void SS_UninitSpiSlave(void);
 ret_code_t SS_SetTxbuffer(uint8_t *pData, uint16_t length);
 
 /**
- * @brief Function to set time update Tx buffer of spi slave
+ * @brief Queue a time update Tx buffer for spi slave delivery
+ *
+ * The 10-byte LT packet is stored as pending and armed for the next SPI
+ * transaction using the standard SPIS buffer lifecycle.
  *
  * @param pData, pointer to the 10-byte time update data to transfer
  * @param length, length of data to transfer

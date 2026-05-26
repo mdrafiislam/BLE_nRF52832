@@ -215,10 +215,10 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
         NRF_LOG_DEBUG("Received data from BLE NUS. Writing data on UART.");
         NRF_LOG_HEXDUMP_DEBUG(p_evt->params.rx_data.p_data, p_evt->params.rx_data.length);
 
-        // --- UT time-update command path ---
-        if (BC_IsUtPrefix(p_evt->params.rx_data.p_data, p_evt->params.rx_data.length))
+        // --- LT time-update command path ---
+        if (BC_IsLtPrefix(p_evt->params.rx_data.p_data, p_evt->params.rx_data.length))
         {
-            NRF_LOG_INFO("UT time-update command received");
+            NRF_LOG_INFO("LT time-update command received");
 
             // Parse 16 hex chars (bytes 2-17) as big-endian uint64_t millisecond timestamp
             uint64_t timestamp_ms = 0;
@@ -239,29 +239,29 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
             uint64_t unix_seconds = (timestamp_ms + 500ULL) / 1000ULL;
 
             // Format as 8-char uppercase hex
-            char spi_payload[11];  // "UT" + 8 hex chars + null (null for safety only)
-            snprintf(spi_payload, sizeof(spi_payload), "UT%08lX", (unsigned long)unix_seconds);
+            char spi_payload[11];  // "LT" + 8 hex chars + null (null for safety only)
+            snprintf(spi_payload, sizeof(spi_payload), "LT%08lX", (unsigned long)unix_seconds);
 
-            // Send to STM32 via SPI (exactly 10 bytes: "UT" + 8 hex chars)
-            NRF_LOG_INFO("UT SPI payload bytes[0..4]: %02X %02X %02X %02X %02X",
+            // Send to STM32 via SPI (exactly 10 bytes: "LT" + 8 hex chars)
+            NRF_LOG_INFO("LT SPI payload bytes[0..4]: %02X %02X %02X %02X %02X",
                          (unsigned int)(uint8_t)spi_payload[0],
                          (unsigned int)(uint8_t)spi_payload[1],
                          (unsigned int)(uint8_t)spi_payload[2],
                          (unsigned int)(uint8_t)spi_payload[3],
                          (unsigned int)(uint8_t)spi_payload[4]);
-            NRF_LOG_INFO("UT SPI payload bytes[5..9]: %02X %02X %02X %02X %02X",
+            NRF_LOG_INFO("LT SPI payload bytes[5..9]: %02X %02X %02X %02X %02X",
                          (unsigned int)(uint8_t)spi_payload[5],
                          (unsigned int)(uint8_t)spi_payload[6],
                          (unsigned int)(uint8_t)spi_payload[7],
                          (unsigned int)(uint8_t)spi_payload[8],
                          (unsigned int)(uint8_t)spi_payload[9]);
             SS_SetTimeUpdateTxbuffer((uint8_t *)spi_payload, 10);
-            NRF_LOG_INFO("UT SPI payload: %s", spi_payload);
+            NRF_LOG_INFO("LT SPI payload: %s", spi_payload);
 
             return;  // Skip normal SPI forwarding and command processing
         }
 
-        // --- Normal path: forward all non-UT data ---
+        // --- Normal path: forward all non-LT data ---
         uint16_t safe_len = (p_evt->params.rx_data.length < (SPIS_DATA_TX_BUFFER_SIZE - 1))
                             ? p_evt->params.rx_data.length
                             : (SPIS_DATA_TX_BUFFER_SIZE - 1);
@@ -635,7 +635,7 @@ static void gpio_cfg(void)
     }
         
     nrf_gpio_cfg_output(APP_SPIS_MISO_PIN);
-    nrf_gpio_pin_clear(APP_SPIS_MISO_PIN);    
+    nrf_gpio_pin_set(APP_SPIS_MISO_PIN);    
 }
 
 
@@ -646,7 +646,7 @@ static void dis_init(void) {
     memset(&dis_init_obj, 0, sizeof(dis_init_obj));
 
     //ble_srv_ascii_to_utf8(&dis_init_obj.manufact_name_str, "Nordic Semiconductor");
-    ble_srv_ascii_to_utf8(&dis_init_obj.fw_rev_str, "20q16cst1sl63ci10rotUT"); // Set firmware version
+    ble_srv_ascii_to_utf8(&dis_init_obj.fw_rev_str, "20q16cst1sl63ci10rotLT"); // Set firmware version
     ble_srv_ascii_to_utf8(&dis_init_obj.hw_rev_str, "AIM21");
     ble_srv_ascii_to_utf8(&dis_init_obj.model_num_str, "nRF52832");
 

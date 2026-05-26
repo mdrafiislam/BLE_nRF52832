@@ -4,7 +4,7 @@
  */
 
 /**
- * @file 	SS_SpiSlave.c
+ * @file    SS_SpiSlave.c
  * @author
  *
  */
@@ -26,20 +26,49 @@
 
 /*******************************************************************************/
 #define SPIS_INSTANCE               1                                       /**< SPIS instance index. */
+#define CS_NOTIFY_WAIT_MAX          10000000UL
 
 /*******************************************************************************/
 static const nrf_drv_spis_t spis = NRF_DRV_SPIS_INSTANCE(SPIS_INSTANCE);    /**< SPIS instance. */
 
-static uint8_t       m_tx_buf[SPIS_DATA_TX_BUFFER_SIZE];                     /**< TX buffer. */
-static uint8_t       m_rx_buf[SPIS_DATA_RX_BUFFER_SIZE];                       /**< RX buffer. */
-static const uint8_t m_rx_length = SPIS_DATA_RX_BUFFER_SIZE;                           /**< Transfer RX length. */
-static const uint8_t m_tx_length = SPIS_DATA_TX_BUFFER_SIZE;                           /**< Transfer TX length. */
+static uint8_t       m_tx_buf[SPIS_DATA_TX_BUFFER_SIZE];                    /**< Active TX buffer. */
+static uint8_t       m_normal_tx_buf[SPIS_DATA_TX_BUFFER_SIZE];             /**< Normal TX buffer. */
+static uint8_t       m_lt_tx_buf[SPIS_DATA_TX_BUFFER_SIZE];                 /**< Pending LT TX buffer. */
+static uint8_t       m_rx_buf[SPIS_DATA_RX_BUFFER_SIZE];                    /**< RX buffer. */
+static const uint8_t m_rx_length = SPIS_DATA_RX_BUFFER_SIZE;                /**< Transfer RX length. */
+static const uint8_t m_tx_length = SPIS_DATA_TX_BUFFER_SIZE;                /**< Transfer TX length. */
 
 static SS_DATA_RECEIVE_CB _SpiSlaveDataRxCb = NULL;
 static uint16_t      _connHandle = BLE_CONN_HANDLE_INVALID;                 /**< Handle of the current connection. */
-static bool         _spiSlaveInit = false;
+static bool          _spiSlaveInit = false;
+static bool          _ltPending = false;
+static bool          _ltArmed = false;
 
 /*******************************************************************************/
+static void SSi_SetConnectionStatus(uint8_t *pBuffer)
+{
+    if (_connHandle != BLE_CONN_HANDLE_INVALID)
+    {
+        pBuffer[m_tx_length - 1] = 0x01;
+    }
+    else
+    {
+        pBuffer[m_tx_length - 1] = 0x00;
+    }
+}
+
+static ret_code_t SSi_ArmTxBuffer(uint8_t const *pTxBuffer)
+{
+    memcpy(m_tx_buf, pTxBuffer, sizeof(m_tx_buf));
+    return nrf_drv_spis_buffers_set(&spis, m_tx_buf, sizeof(m_tx_buf), m_rx_buf, sizeof(m_rx_buf));
+}
+
+static void SSi_DiscardPendingLt(void)
+{
+    _ltPending = false;
+    _ltArmed = false;
+    memset(m_lt_tx_buf, 0, sizeof(m_lt_tx_buf));
+}
 
 /**
  * @brief SPIS user event handler.
@@ -50,6 +79,8 @@ static void SSi_SpisScheduledEvent(void *pData, uint16_t length)
 {
     nrf_drv_spis_event_t event = *(nrf_drv_spis_event_t*)pData;
 
+    UNUSED_PARAMETER(length);
+
     if (event.evt_type == NRF_DRV_SPIS_XFER_DONE)
     {
         NRF_LOG_INFO("SS_Xfer_done");
@@ -57,20 +88,35 @@ static void SSi_SpisScheduledEvent(void *pData, uint16_t length)
         if (_SpiSlaveDataRxCb != NULL)
         {
             _SpiSlaveDataRxCb(m_rx_buf, sizeof(m_rx_buf));
-        }         
+        }
 
         memset(m_rx_buf, 0, sizeof(m_rx_buf));
 
-        if (_connHandle != BLE_CONN_HANDLE_INVALID)
+        if (_ltArmed == true)
         {
-            m_tx_buf[m_tx_length - 1] = 0x01;
+            if (event.tx_amount >= SPIS_DATA_TX_BUFFER_SIZE)
+            {
+                NRF_LOG_INFO("LT SPI transfer complete");
+            }
+            else
+            {
+                NRF_LOG_WARNING("LT SPI transfer incomplete: %u bytes", (unsigned int)event.tx_amount);
+            }
+
+            SSi_DiscardPendingLt();
+        }
+
+        SSi_SetConnectionStatus(m_normal_tx_buf);
+
+        if (_ltPending == true)
+        {
+            _ltArmed = true;
+            (void)SSi_ArmTxBuffer(m_lt_tx_buf);
         }
         else
         {
-            m_tx_buf[m_tx_length - 1] = 0x00;
+            (void)SSi_ArmTxBuffer(m_normal_tx_buf);
         }
-
-        nrf_drv_spis_buffers_set(&spis, m_tx_buf, sizeof(m_tx_buf), m_rx_buf, sizeof(m_rx_buf));
     }
 }
 
@@ -95,6 +141,7 @@ static void SSi_SpisEventHandler(nrf_drv_spis_event_t event)
 void SS_SetConnectionHandle(uint16_t connHandle)
 {
     _connHandle = connHandle;
+    SSi_SetConnectionStatus(m_normal_tx_buf);
 }
 
 /*******************************************************************************/
@@ -117,19 +164,17 @@ ret_code_t SS_SetTxbuffer(uint8_t *pData, uint16_t length)
                         ? length
                         : (SPIS_DATA_TX_BUFFER_SIZE - 1);
 
-    memset(m_tx_buf, 0, sizeof(m_tx_buf));
-    memcpy(m_tx_buf, pData, copy_len);
+    memset(m_normal_tx_buf, 0, sizeof(m_normal_tx_buf));
+    memcpy(m_normal_tx_buf, pData, copy_len);
+    SSi_SetConnectionStatus(m_normal_tx_buf);
 
-    if (_connHandle != BLE_CONN_HANDLE_INVALID)
+    if (_ltPending == true)
     {
-        m_tx_buf[m_tx_length - 1] = 0x01;
-    }
-    else
-    {
-        m_tx_buf[m_tx_length - 1] = 0x00;
+        return NRF_SUCCESS;
     }
 
-    return nrf_drv_spis_buffers_set(&spis, m_tx_buf, sizeof(m_tx_buf), m_rx_buf, sizeof(m_rx_buf)); 
+    _ltArmed = false;
+    return SSi_ArmTxBuffer(m_normal_tx_buf);
 }
 
 /*******************************************************************************/
@@ -153,10 +198,12 @@ ret_code_t SS_SetTimeUpdateTxbuffer(uint8_t *pData, uint16_t length)
         return NRF_ERROR_DATA_SIZE;
     }
 
-    memset(m_tx_buf, 0, sizeof(m_tx_buf));
-    memcpy(m_tx_buf, pData, length);
+    memset(m_lt_tx_buf, 0, sizeof(m_lt_tx_buf));
+    memcpy(m_lt_tx_buf, pData, length);
+    _ltPending = true;
+    _ltArmed = true;
 
-    return nrf_drv_spis_buffers_set(&spis, m_tx_buf, sizeof(m_tx_buf), m_rx_buf, sizeof(m_rx_buf));
+    return SSi_ArmTxBuffer(m_lt_tx_buf);
 }
 
 /*******************************************************************************/
@@ -171,13 +218,14 @@ void SS_UninitSpiSlave(void)
 {
     nrf_drv_spis_uninit(&spis);
     _spiSlaveInit = false;
+    SSi_DiscardPendingLt();
 
     nrf_gpio_cfg_default(APP_SPIS_CS_PIN);
     nrf_gpio_cfg_default(APP_SPIS_MOSI_PIN);
     nrf_gpio_cfg_default(APP_SPIS_SCK_PIN);
 
     nrf_gpio_cfg_output(APP_SPIS_MISO_PIN);
-    nrf_gpio_pin_clear(APP_SPIS_MISO_PIN);
+    nrf_gpio_pin_set(APP_SPIS_MISO_PIN);
 }
 
 /*******************************************************************************/
@@ -207,22 +255,14 @@ ret_code_t SS_InitSpiSlave(SS_DATA_RECEIVE_CB dataRxCb)
     }
 
     _spiSlaveInit = true;
+    SSi_DiscardPendingLt();
 
     memset(m_rx_buf, 0, m_rx_length);
     memset(m_tx_buf, 0, sizeof(m_tx_buf));
+    memset(m_normal_tx_buf, 0, sizeof(m_normal_tx_buf));
+    SSi_SetConnectionStatus(m_normal_tx_buf);
 
-    if (_connHandle != BLE_CONN_HANDLE_INVALID)
-    {
-        m_tx_buf[m_tx_length - 1] = 0x01;
-    }
-    else
-    {
-        m_tx_buf[m_tx_length - 1] = 0x00;
-    }
-
-    err_code = nrf_drv_spis_buffers_set(&spis, m_tx_buf, sizeof(m_tx_buf), m_rx_buf, sizeof(m_rx_buf));
-
-    return err_code;
+    return SSi_ArmTxBuffer(m_normal_tx_buf);
 }
 
 /** @} */

@@ -28,17 +28,17 @@
 ret_code_t BC_ProcessBleCommand(uint8_t *pData, uint16_t length);
 
 /**
- * @brief Check if data is a valid UT time-update command
+ * @brief Check if data is a valid LT time-update command
  *
- * Validates: starts with "UT", exactly 18 bytes total,
+ * Validates: starts with "LT", exactly 18 bytes total,
  * bytes 2-17 are valid hex characters (case-insensitive).
  *
  * @param[in]  pData   Pointer to received data
  * @param[in]  length  Length of received data
  *
- * @return true if valid UT command, false otherwise
+ * @return true if valid LT command, false otherwise
  */
-bool BC_IsUtPrefix(const uint8_t *pData, uint16_t length);
+bool BC_IsLtPrefix(const uint8_t *pData, uint16_t length);
 
 /**
  * @author
