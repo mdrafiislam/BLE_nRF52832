@@ -45,6 +45,13 @@ static bool          _ltPending = false;
 static bool          _ltArmed = false;
 
 /*******************************************************************************/
+static void SSi_SpisEventHandler(nrf_drv_spis_event_t event);
+
+static bool SSi_IsCsLow(void)
+{
+    return (nrf_gpio_pin_read(APP_SPIS_CS_PIN) == 0);
+}
+
 static void SSi_SetConnectionStatus(uint8_t *pBuffer)
 {
     if (_connHandle != BLE_CONN_HANDLE_INVALID)
@@ -68,6 +75,87 @@ static void SSi_DiscardPendingLt(void)
     _ltPending = false;
     _ltArmed = false;
     memset(m_lt_tx_buf, 0, sizeof(m_lt_tx_buf));
+}
+
+static ret_code_t SSi_InitSpis(void)
+{
+    ret_code_t err_code;
+    nrf_drv_spis_config_t spisConfig = NRF_DRV_SPIS_DEFAULT_CONFIG;
+
+    spisConfig.csn_pin               = APP_SPIS_CS_PIN;
+    spisConfig.miso_pin              = APP_SPIS_MISO_PIN;
+    spisConfig.mosi_pin              = APP_SPIS_MOSI_PIN;
+    spisConfig.sck_pin               = APP_SPIS_SCK_PIN;
+
+    err_code = nrf_drv_spis_init(&spis, &spisConfig, SSi_SpisEventHandler);
+    if (err_code == NRF_SUCCESS)
+    {
+        _spiSlaveInit = true;
+    }
+
+    return err_code;
+}
+
+static void SSi_UninitSpisOnly(void)
+{
+    if (_spiSlaveInit == true)
+    {
+        nrf_drv_spis_uninit(&spis);
+        _spiSlaveInit = false;
+    }
+}
+
+static ret_code_t SSi_RestoreNormalSpis(void)
+{
+    ret_code_t err_code;
+
+    SSi_UninitSpisOnly();
+
+    err_code = SSi_InitSpis();
+    if (err_code != NRF_SUCCESS)
+    {
+        return err_code;
+    }
+
+    return SSi_ArmTxBuffer(m_normal_tx_buf);
+}
+
+static ret_code_t SSi_InterruptStm32AndArmLt(void)
+{
+    ret_code_t err_code;
+    uint32_t checks;
+
+    SSi_UninitSpisOnly();
+
+    nrf_gpio_cfg_output(APP_SPIS_MISO_PIN);
+    nrf_gpio_pin_clear(APP_SPIS_MISO_PIN);
+
+    for (checks = 0; checks < CS_NOTIFY_WAIT_MAX; checks++)
+    {
+        if (SSi_IsCsLow() == true)
+        {
+            err_code = SSi_InitSpis();
+            if (err_code != NRF_SUCCESS)
+            {
+                SSi_DiscardPendingLt();
+                (void)SSi_RestoreNormalSpis();
+                return err_code;
+            }
+
+            _ltArmed = true;
+            err_code = SSi_ArmTxBuffer(m_lt_tx_buf);
+            if (err_code != NRF_SUCCESS)
+            {
+                SSi_DiscardPendingLt();
+                (void)SSi_RestoreNormalSpis();
+            }
+
+            return err_code;
+        }
+    }
+
+    SSi_DiscardPendingLt();
+    return SSi_RestoreNormalSpis();
 }
 
 /**
@@ -201,9 +289,14 @@ ret_code_t SS_SetTimeUpdateTxbuffer(uint8_t *pData, uint16_t length)
     memset(m_lt_tx_buf, 0, sizeof(m_lt_tx_buf));
     memcpy(m_lt_tx_buf, pData, length);
     _ltPending = true;
-    _ltArmed = true;
 
-    return SSi_ArmTxBuffer(m_lt_tx_buf);
+    if (SSi_IsCsLow() == true)
+    {
+        NRF_LOG_INFO("LT queued for next safe SPI transaction");
+        return NRF_SUCCESS;
+    }
+
+    return SSi_InterruptStm32AndArmLt();
 }
 
 /*******************************************************************************/
@@ -216,8 +309,7 @@ ret_code_t SS_SetTimeUpdateTxbuffer(uint8_t *pData, uint16_t length)
  */
 void SS_UninitSpiSlave(void)
 {
-    nrf_drv_spis_uninit(&spis);
-    _spiSlaveInit = false;
+    SSi_UninitSpisOnly();
     SSi_DiscardPendingLt();
 
     nrf_gpio_cfg_default(APP_SPIS_CS_PIN);
@@ -242,19 +334,12 @@ ret_code_t SS_InitSpiSlave(SS_DATA_RECEIVE_CB dataRxCb)
 
     _SpiSlaveDataRxCb = dataRxCb;
 
-    nrf_drv_spis_config_t spisConfig = NRF_DRV_SPIS_DEFAULT_CONFIG;
-    spisConfig.csn_pin               = APP_SPIS_CS_PIN;
-    spisConfig.miso_pin              = APP_SPIS_MISO_PIN;
-    spisConfig.mosi_pin              = APP_SPIS_MOSI_PIN;
-    spisConfig.sck_pin               = APP_SPIS_SCK_PIN;
-
-    err_code = nrf_drv_spis_init(&spis, &spisConfig, SSi_SpisEventHandler);
+    err_code = SSi_InitSpis();
     if (err_code != NRF_SUCCESS)
     {
         return err_code;
     }
 
-    _spiSlaveInit = true;
     SSi_DiscardPendingLt();
 
     memset(m_rx_buf, 0, m_rx_length);

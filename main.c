@@ -633,9 +633,6 @@ static void gpio_cfg(void)
         /* Disconnect input buffer and pin as input */
         nrf_gpio_cfg_default(pinNumber);
     }
-        
-    nrf_gpio_cfg_output(APP_SPIS_MISO_PIN);
-    nrf_gpio_pin_set(APP_SPIS_MISO_PIN);    
 }
 
 
