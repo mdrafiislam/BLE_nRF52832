@@ -19,6 +19,10 @@
 #define SPIS_DATA_RX_BUFFER_SIZE       244 // Bytes
 #define SPIS_DATA_TX_BUFFER_SIZE       10 // Bytes
 
+#ifndef ENABLE_LT_BLE_DEBUG
+#define ENABLE_LT_BLE_DEBUG            1
+#endif
+
 /**
  * @brief User event handler prototype to receive SPI slave data.
  *
@@ -28,6 +32,16 @@
  * @param[in] 	length 		Received data length
  */
 typedef void (*SS_DATA_RECEIVE_CB)(uint8_t *pData, uint16_t length);
+typedef void (*SS_DEBUG_NOTIFY_CB)(const char *msg);
+
+/**
+ * @brief Function to set optional debug notification callback.
+ *
+ * @param[in] debugNotifyCb Function to call for short debug messages.
+ *
+ * @return None
+ */
+void SS_SetDebugNotifyCallback(SS_DEBUG_NOTIFY_CB debugNotifyCb);
 
 /**
  * @brief Function to setting Tx buffer of spi slave

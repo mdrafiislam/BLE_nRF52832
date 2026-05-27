@@ -15,6 +15,7 @@
 #include "boards.h"
 #include "app_error.h"
 #include <string.h>
+#include <stdio.h>
 #include "ble_types.h"
 #include "app_scheduler.h"
 
@@ -39,6 +40,7 @@ static const uint8_t m_rx_length = SPIS_DATA_RX_BUFFER_SIZE;                /**<
 static const uint8_t m_tx_length = SPIS_DATA_TX_BUFFER_SIZE;                /**< Transfer TX length. */
 
 static SS_DATA_RECEIVE_CB _SpiSlaveDataRxCb = NULL;
+static SS_DEBUG_NOTIFY_CB _DebugNotifyCb = NULL;
 static uint16_t      _connHandle = BLE_CONN_HANDLE_INVALID;                 /**< Handle of the current connection. */
 static bool          _spiSlaveInit = false;
 static bool          _ltPending = false;
@@ -46,6 +48,18 @@ static bool          _ltArmed = false;
 
 /*******************************************************************************/
 static void SSi_SpisEventHandler(nrf_drv_spis_event_t event);
+
+static void SSi_LtDebugNotify(const char *msg)
+{
+#if ENABLE_LT_BLE_DEBUG
+    if (_DebugNotifyCb != NULL)
+    {
+        _DebugNotifyCb(msg);
+    }
+#else
+    UNUSED_PARAMETER(msg);
+#endif
+}
 
 static bool SSi_IsCsLow(void)
 {
@@ -72,9 +86,16 @@ static ret_code_t SSi_ArmTxBuffer(uint8_t const *pTxBuffer)
 
 static void SSi_DiscardPendingLt(void)
 {
+    bool had_lt_packet = (_ltPending == true) || (_ltArmed == true);
+
     _ltPending = false;
     _ltArmed = false;
     memset(m_lt_tx_buf, 0, sizeof(m_lt_tx_buf));
+
+    if (had_lt_packet == true)
+    {
+        SSi_LtDebugNotify("DBG:LT_DISCARD");
+    }
 }
 
 static ret_code_t SSi_InitSpis(void)
@@ -129,14 +150,17 @@ static ret_code_t SSi_InterruptStm32AndArmLt(void)
 
     nrf_gpio_cfg_output(APP_SPIS_MISO_PIN);
     nrf_gpio_pin_clear(APP_SPIS_MISO_PIN);
+    SSi_LtDebugNotify("DBG:LT_IRQ_LOW");
 
     for (checks = 0; checks < CS_NOTIFY_WAIT_MAX; checks++)
     {
         if (SSi_IsCsLow() == true)
         {
+            SSi_LtDebugNotify("DBG:LT_CS_LOW");
             err_code = SSi_InitSpis();
             if (err_code != NRF_SUCCESS)
             {
+                SSi_LtDebugNotify("DBG:LT_SPIS_INIT_FAIL");
                 SSi_DiscardPendingLt();
                 (void)SSi_RestoreNormalSpis();
                 return err_code;
@@ -146,6 +170,7 @@ static ret_code_t SSi_InterruptStm32AndArmLt(void)
             err_code = SSi_ArmTxBuffer(m_lt_tx_buf);
             if (err_code != NRF_SUCCESS)
             {
+                SSi_LtDebugNotify("DBG:LT_ARM_FAIL");
                 SSi_DiscardPendingLt();
                 (void)SSi_RestoreNormalSpis();
             }
@@ -154,6 +179,7 @@ static ret_code_t SSi_InterruptStm32AndArmLt(void)
         }
     }
 
+    SSi_LtDebugNotify("DBG:LT_CS_TIMEOUT");
     SSi_DiscardPendingLt();
     return SSi_RestoreNormalSpis();
 }
@@ -185,10 +211,15 @@ static void SSi_SpisScheduledEvent(void *pData, uint16_t length)
             if (event.tx_amount >= SPIS_DATA_TX_BUFFER_SIZE)
             {
                 NRF_LOG_INFO("LT SPI transfer complete");
+                SSi_LtDebugNotify("DBG:LT_SENT_10");
             }
             else
             {
+                char incomplete_msg[sizeof("DBG:LT_INCOMPLETE_255")];
+
                 NRF_LOG_WARNING("LT SPI transfer incomplete: %u bytes", (unsigned int)event.tx_amount);
+                snprintf(incomplete_msg, sizeof(incomplete_msg), "DBG:LT_INCOMPLETE_%u", (unsigned int)event.tx_amount);
+                SSi_LtDebugNotify(incomplete_msg);
             }
 
             SSi_DiscardPendingLt();
@@ -216,6 +247,19 @@ static void SSi_SpisScheduledEvent(void *pData, uint16_t length)
 static void SSi_SpisEventHandler(nrf_drv_spis_event_t event)
 {
     app_sched_event_put(&event, sizeof(nrf_drv_spis_event_t), SSi_SpisScheduledEvent);
+}
+
+/*******************************************************************************/
+/**
+ * @brief Function to set optional debug notification callback.
+ *
+ * @param[in] debugNotifyCb Function to call for short debug messages.
+ *
+ * @return None
+ */
+void SS_SetDebugNotifyCallback(SS_DEBUG_NOTIFY_CB debugNotifyCb)
+{
+    _DebugNotifyCb = debugNotifyCb;
 }
 
 /*******************************************************************************/

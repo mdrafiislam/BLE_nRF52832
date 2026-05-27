@@ -132,6 +132,7 @@ static uint8_t _RxDataBuff[SPIS_DATA_RX_BUFFER_SIZE];
 static uint8_t _TxDataBuff[SPIS_DATA_TX_BUFFER_SIZE + 1];
 
 static void DataTxOnBLE(uint8_t *pData, uint16_t length);
+static void LT_DebugNotify(const char *msg);
 
 /**@brief Function for assert macro callback.
  *
@@ -219,6 +220,7 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
         if (BC_IsLtPrefix(p_evt->params.rx_data.p_data, p_evt->params.rx_data.length))
         {
             NRF_LOG_INFO("LT time-update command received");
+            LT_DebugNotify("DBG:LT_RX");
 
             // Parse 16 hex chars (bytes 2-17) as big-endian uint64_t millisecond timestamp
             uint64_t timestamp_ms = 0;
@@ -619,6 +621,27 @@ static void DataTxOnBLE(uint8_t *pData, uint16_t length)
     ble_nus_data_send(&m_nus, _RxDataBuff, &length, m_conn_handle);
 }
 
+/**@brief Function to transmit short LT debug messages over BLE.
+ */
+static void LT_DebugNotify(const char *msg)
+{
+#if ENABLE_LT_BLE_DEBUG
+    ret_code_t err_code;
+    uint16_t length;
+
+    if ((msg == NULL) || (m_conn_handle == BLE_CONN_HANDLE_INVALID))
+    {
+        return;
+    }
+
+    length = (uint16_t)strlen(msg);
+    err_code = ble_nus_data_send(&m_nus, (uint8_t *)msg, &length, m_conn_handle);
+    UNUSED_VARIABLE(err_code);
+#else
+    UNUSED_PARAMETER(msg);
+#endif
+}
+
 /**@brief Function to transmite spi data over ble
  */
 static void gpio_cfg(void)
@@ -676,6 +699,7 @@ int main(void)
     gap_params_init();
     gatt_init();
     services_init();
+    SS_SetDebugNotifyCallback(LT_DebugNotify);
     advertising_init();
     conn_params_init();
     conn_evt_len_ext_set(true);
