@@ -20,7 +20,7 @@
 #define SPIS_DATA_TX_BUFFER_SIZE       10 // Bytes
 
 #ifndef ENABLE_LT_BLE_DEBUG
-#define ENABLE_LT_BLE_DEBUG            1
+#define ENABLE_LT_BLE_DEBUG            0
 #endif
 
 /**
