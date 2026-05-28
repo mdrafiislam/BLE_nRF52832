@@ -72,13 +72,23 @@ void SS_UninitSpiSlave(void);
 ret_code_t SS_SetTxbuffer(uint8_t *pData, uint16_t length);
 
 /**
- * @brief Queue a time update Tx buffer for spi slave delivery
+ * @brief Queue an exact 10-byte phone bridge Tx buffer for spi slave delivery.
  *
  * If CS is high, SPIS is temporarily uninitialized and MISO is driven low
  * until CS goes low or CS_NOTIFY_WAIT_MAX expires. If CS is already low, the
- * LT packet is queued for the next safe SPI transaction.
+ * phone bridge packet is queued for the next safe SPI transaction.
  *
- * @param pData, pointer to the 10-byte time update data to transfer
+ * @param pData, pointer to the 10-byte phone data to transfer
+ * @param length, length of data to transfer
+ *
+ * @return Return NRF_SUCCESS else error code
+ */
+ret_code_t SS_SetPhoneTxbuffer(uint8_t *pData, uint16_t length);
+
+/**
+ * @brief Compatibility wrapper for the old time update API.
+ *
+ * @param pData, pointer to the 10-byte data to transfer
  * @param length, length of data to transfer
  *
  * @return Return NRF_SUCCESS else error code

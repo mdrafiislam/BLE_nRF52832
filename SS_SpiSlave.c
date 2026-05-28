@@ -34,7 +34,7 @@ static const nrf_drv_spis_t spis = NRF_DRV_SPIS_INSTANCE(SPIS_INSTANCE);    /**<
 
 static uint8_t       m_tx_buf[SPIS_DATA_TX_BUFFER_SIZE];                    /**< Active TX buffer. */
 static uint8_t       m_normal_tx_buf[SPIS_DATA_TX_BUFFER_SIZE];             /**< Normal TX buffer. */
-static uint8_t       m_lt_tx_buf[SPIS_DATA_TX_BUFFER_SIZE];                 /**< Pending LT TX buffer. */
+static uint8_t       m_phone_tx_buf[SPIS_DATA_TX_BUFFER_SIZE];              /**< Pending phone bridge TX buffer. */
 static uint8_t       m_rx_buf[SPIS_DATA_RX_BUFFER_SIZE];                    /**< RX buffer. */
 static const uint8_t m_rx_length = SPIS_DATA_RX_BUFFER_SIZE;                /**< Transfer RX length. */
 static const uint8_t m_tx_length = SPIS_DATA_TX_BUFFER_SIZE;                /**< Transfer TX length. */
@@ -43,8 +43,8 @@ static SS_DATA_RECEIVE_CB _SpiSlaveDataRxCb = NULL;
 static SS_DEBUG_NOTIFY_CB _DebugNotifyCb = NULL;
 static uint16_t      _connHandle = BLE_CONN_HANDLE_INVALID;                 /**< Handle of the current connection. */
 static bool          _spiSlaveInit = false;
-static bool          _ltPending = false;
-static bool          _ltArmed = false;
+static bool          _phoneTxPending = false;
+static bool          _phoneTxArmed = false;
 
 /*******************************************************************************/
 static void SSi_SpisEventHandler(nrf_drv_spis_event_t event);
@@ -84,15 +84,15 @@ static ret_code_t SSi_ArmTxBuffer(uint8_t const *pTxBuffer)
     return nrf_drv_spis_buffers_set(&spis, m_tx_buf, sizeof(m_tx_buf), m_rx_buf, sizeof(m_rx_buf));
 }
 
-static void SSi_DiscardPendingLt(void)
+static void SSi_ClearPhoneTx(bool notifyDiscard)
 {
-    bool had_lt_packet = (_ltPending == true) || (_ltArmed == true);
+    bool had_phone_packet = (_phoneTxPending == true) || (_phoneTxArmed == true);
 
-    _ltPending = false;
-    _ltArmed = false;
-    memset(m_lt_tx_buf, 0, sizeof(m_lt_tx_buf));
+    _phoneTxPending = false;
+    _phoneTxArmed = false;
+    memset(m_phone_tx_buf, 0, sizeof(m_phone_tx_buf));
 
-    if (had_lt_packet == true)
+    if ((notifyDiscard == true) && (had_phone_packet == true))
     {
         SSi_LtDebugNotify("DBG:LT_DISCARD");
     }
@@ -141,7 +141,15 @@ static ret_code_t SSi_RestoreNormalSpis(void)
     return SSi_ArmTxBuffer(m_normal_tx_buf);
 }
 
-static ret_code_t SSi_InterruptStm32AndArmLt(void)
+static void SSi_WaitForCsHigh(void)
+{
+    while (SSi_IsCsLow() == true)
+    {
+        /* Wait until the active master transaction releases CS. */
+    }
+}
+
+static ret_code_t SSi_InterruptStm32AndArmPhoneTx(void)
 {
     ret_code_t err_code;
     uint32_t checks;
@@ -161,17 +169,17 @@ static ret_code_t SSi_InterruptStm32AndArmLt(void)
             if (err_code != NRF_SUCCESS)
             {
                 SSi_LtDebugNotify("DBG:LT_SPIS_INIT_FAIL");
-                SSi_DiscardPendingLt();
+                SSi_ClearPhoneTx(true);
                 (void)SSi_RestoreNormalSpis();
                 return err_code;
             }
 
-            _ltArmed = true;
-            err_code = SSi_ArmTxBuffer(m_lt_tx_buf);
+            _phoneTxArmed = true;
+            err_code = SSi_ArmTxBuffer(m_phone_tx_buf);
             if (err_code != NRF_SUCCESS)
             {
                 SSi_LtDebugNotify("DBG:LT_ARM_FAIL");
-                SSi_DiscardPendingLt();
+                SSi_ClearPhoneTx(true);
                 (void)SSi_RestoreNormalSpis();
             }
 
@@ -180,7 +188,7 @@ static ret_code_t SSi_InterruptStm32AndArmLt(void)
     }
 
     SSi_LtDebugNotify("DBG:LT_CS_TIMEOUT");
-    SSi_DiscardPendingLt();
+    SSi_ClearPhoneTx(true);
     return SSi_RestoreNormalSpis();
 }
 
@@ -197,40 +205,42 @@ static void SSi_SpisScheduledEvent(void *pData, uint16_t length)
 
     if (event.evt_type == NRF_DRV_SPIS_XFER_DONE)
     {
+        bool phone_tx_was_armed = _phoneTxArmed;
+
         NRF_LOG_INFO("SS_Xfer_done");
 
-        if (_SpiSlaveDataRxCb != NULL)
+        if ((phone_tx_was_armed != true) && (_SpiSlaveDataRxCb != NULL))
         {
             _SpiSlaveDataRxCb(m_rx_buf, sizeof(m_rx_buf));
         }
 
         memset(m_rx_buf, 0, sizeof(m_rx_buf));
 
-        if (_ltArmed == true)
+        if (phone_tx_was_armed == true)
         {
             if (event.tx_amount >= SPIS_DATA_TX_BUFFER_SIZE)
             {
-                NRF_LOG_INFO("LT SPI transfer complete");
+                NRF_LOG_INFO("Phone SPI bridge transfer complete");
                 SSi_LtDebugNotify("DBG:LT_SENT_10");
             }
             else
             {
                 char incomplete_msg[sizeof("DBG:LT_INCOMPLETE_255")];
 
-                NRF_LOG_WARNING("LT SPI transfer incomplete: %u bytes", (unsigned int)event.tx_amount);
+                NRF_LOG_WARNING("Phone SPI bridge transfer incomplete: %u bytes", (unsigned int)event.tx_amount);
                 snprintf(incomplete_msg, sizeof(incomplete_msg), "DBG:LT_INCOMPLETE_%u", (unsigned int)event.tx_amount);
                 SSi_LtDebugNotify(incomplete_msg);
             }
 
-            SSi_DiscardPendingLt();
+            SSi_ClearPhoneTx(false);
         }
 
         SSi_SetConnectionStatus(m_normal_tx_buf);
 
-        if (_ltPending == true)
+        if (_phoneTxPending == true)
         {
-            _ltArmed = true;
-            (void)SSi_ArmTxBuffer(m_lt_tx_buf);
+            SSi_WaitForCsHigh();
+            (void)SSi_InterruptStm32AndArmPhoneTx();
         }
         else
         {
@@ -300,18 +310,52 @@ ret_code_t SS_SetTxbuffer(uint8_t *pData, uint16_t length)
     memcpy(m_normal_tx_buf, pData, copy_len);
     SSi_SetConnectionStatus(m_normal_tx_buf);
 
-    if (_ltPending == true)
+    if (_phoneTxPending == true)
     {
         return NRF_SUCCESS;
     }
 
-    _ltArmed = false;
+    _phoneTxArmed = false;
     return SSi_ArmTxBuffer(m_normal_tx_buf);
 }
 
 /*******************************************************************************/
 /**
- * @brief Function to setting time update Tx buffer of spi slave
+ * @brief Function to set phone bridge Tx buffer of spi slave
+ *
+ * @param pData, pointer to the data to transfer
+ * @param length, length of data to transfer
+ *
+ * @return Return NRF_SUCCESS else error code
+ */
+ret_code_t SS_SetPhoneTxbuffer(uint8_t *pData, uint16_t length)
+{
+    if (_spiSlaveInit != true)
+    {
+        return NRF_ERROR_INVALID_STATE;
+    }
+
+    if (length != SPIS_DATA_TX_BUFFER_SIZE)
+    {
+        return NRF_ERROR_DATA_SIZE;
+    }
+
+    memset(m_phone_tx_buf, 0, sizeof(m_phone_tx_buf));
+    memcpy(m_phone_tx_buf, pData, length);
+    _phoneTxPending = true;
+
+    if (SSi_IsCsLow() == true)
+    {
+        NRF_LOG_INFO("Phone SPI bridge payload queued for next safe SPI transaction");
+        return NRF_SUCCESS;
+    }
+
+    return SSi_InterruptStm32AndArmPhoneTx();
+}
+
+/*******************************************************************************/
+/**
+ * @brief Compatibility wrapper for the old time update API.
  *
  * @param pData, pointer to the data to transfer
  * @param length, length of data to transfer
@@ -320,27 +364,7 @@ ret_code_t SS_SetTxbuffer(uint8_t *pData, uint16_t length)
  */
 ret_code_t SS_SetTimeUpdateTxbuffer(uint8_t *pData, uint16_t length)
 {
-    if (_spiSlaveInit != true)
-    {
-        return NRF_ERROR_INVALID_STATE;
-    }
-
-    if (length > SPIS_DATA_TX_BUFFER_SIZE)
-    {
-        return NRF_ERROR_DATA_SIZE;
-    }
-
-    memset(m_lt_tx_buf, 0, sizeof(m_lt_tx_buf));
-    memcpy(m_lt_tx_buf, pData, length);
-    _ltPending = true;
-
-    if (SSi_IsCsLow() == true)
-    {
-        NRF_LOG_INFO("LT queued for next safe SPI transaction");
-        return NRF_SUCCESS;
-    }
-
-    return SSi_InterruptStm32AndArmLt();
+    return SS_SetPhoneTxbuffer(pData, length);
 }
 
 /*******************************************************************************/
@@ -354,7 +378,7 @@ ret_code_t SS_SetTimeUpdateTxbuffer(uint8_t *pData, uint16_t length)
 void SS_UninitSpiSlave(void)
 {
     SSi_UninitSpisOnly();
-    SSi_DiscardPendingLt();
+    SSi_ClearPhoneTx(true);
 
     nrf_gpio_cfg_default(APP_SPIS_CS_PIN);
     nrf_gpio_cfg_default(APP_SPIS_MOSI_PIN);
@@ -384,7 +408,7 @@ ret_code_t SS_InitSpiSlave(SS_DATA_RECEIVE_CB dataRxCb)
         return err_code;
     }
 
-    SSi_DiscardPendingLt();
+    SSi_ClearPhoneTx(true);
 
     memset(m_rx_buf, 0, m_rx_length);
     memset(m_tx_buf, 0, sizeof(m_tx_buf));

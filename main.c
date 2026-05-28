@@ -109,6 +109,8 @@
 
 #define DEAD_BEEF                       0xDEADBEEF                                  /**< Value used as error code on stack dump, can be used to identify stack location on stack unwind. */
 #define SCHED_MAX_EVENT_DATA_SIZE       MAX(APP_TIMER_SCHED_EVENT_DATA_SIZE, sizeof(nrf_drv_spis_event_t))             /**< Maximum size of scheduler events. */
+#define DFU_START_COMMAND               "STARTDFU"
+#define RESET_DEVICE_COMMAND            "STARTRST"
 #ifdef SVCALL_AS_NORMAL_FUNCTION
 #define SCHED_QUEUE_SIZE                20                                          /**< Maximum number of events in the scheduler queue. More is needed in case of Serialization. */
 #else
@@ -133,6 +135,13 @@ static uint8_t _TxDataBuff[SPIS_DATA_TX_BUFFER_SIZE + 1];
 
 static void DataTxOnBLE(uint8_t *pData, uint16_t length);
 static void LT_DebugNotify(const char *msg);
+
+static bool IsExactBleCommand(uint8_t const *pData, uint16_t length, char const *pCommand)
+{
+    uint16_t command_length = (uint16_t)strlen(pCommand);
+
+    return ((length == command_length) && (memcmp(pData, pCommand, command_length) == 0));
+}
 
 /**@brief Function for assert macro callback.
  *
@@ -216,65 +225,28 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
         NRF_LOG_DEBUG("Received data from BLE NUS. Writing data on UART.");
         NRF_LOG_HEXDUMP_DEBUG(p_evt->params.rx_data.p_data, p_evt->params.rx_data.length);
 
-        // --- LT time-update command path ---
-        if (BC_IsLtPrefix(p_evt->params.rx_data.p_data, p_evt->params.rx_data.length))
+        if ((IsExactBleCommand(p_evt->params.rx_data.p_data,
+                               p_evt->params.rx_data.length,
+                               DFU_START_COMMAND) == true) ||
+            (IsExactBleCommand(p_evt->params.rx_data.p_data,
+                               p_evt->params.rx_data.length,
+                               RESET_DEVICE_COMMAND) == true))
         {
-            NRF_LOG_INFO("LT time-update command received");
-            LT_DebugNotify("DBG:LT_RX");
-
-            // Parse 16 hex chars (bytes 2-17) as big-endian uint64_t millisecond timestamp
-            uint64_t timestamp_ms = 0;
-            for (int i = 2; i < 18; i++)
-            {
-                uint8_t c = p_evt->params.rx_data.p_data[i];
-                uint8_t nibble;
-                if (c >= '0' && c <= '9')
-                    nibble = c - '0';
-                else if (c >= 'a' && c <= 'f')
-                    nibble = c - 'a' + 10;
-                else
-                    nibble = c - 'A' + 10;
-                timestamp_ms = (timestamp_ms << 4) | nibble;
-            }
-
-            // Convert to nearest-second unix timestamp
-            uint64_t unix_seconds = (timestamp_ms + 500ULL) / 1000ULL;
-
-            // Format as 8-char uppercase hex
-            char spi_payload[11];  // "LT" + 8 hex chars + null (null for safety only)
-            snprintf(spi_payload, sizeof(spi_payload), "LT%08lX", (unsigned long)unix_seconds);
-
-            // Send to STM32 via SPI (exactly 10 bytes: "LT" + 8 hex chars)
-            NRF_LOG_INFO("LT SPI payload bytes[0..4]: %02X %02X %02X %02X %02X",
-                         (unsigned int)(uint8_t)spi_payload[0],
-                         (unsigned int)(uint8_t)spi_payload[1],
-                         (unsigned int)(uint8_t)spi_payload[2],
-                         (unsigned int)(uint8_t)spi_payload[3],
-                         (unsigned int)(uint8_t)spi_payload[4]);
-            NRF_LOG_INFO("LT SPI payload bytes[5..9]: %02X %02X %02X %02X %02X",
-                         (unsigned int)(uint8_t)spi_payload[5],
-                         (unsigned int)(uint8_t)spi_payload[6],
-                         (unsigned int)(uint8_t)spi_payload[7],
-                         (unsigned int)(uint8_t)spi_payload[8],
-                         (unsigned int)(uint8_t)spi_payload[9]);
-            SS_SetTimeUpdateTxbuffer((uint8_t *)spi_payload, 10);
-            NRF_LOG_INFO("LT SPI payload: %s", spi_payload);
-
-            return;  // Skip normal SPI forwarding and command processing
+            BC_ProcessBleCommand((uint8_t *)p_evt->params.rx_data.p_data, p_evt->params.rx_data.length);
+            return;
         }
 
-        // --- Normal path: forward all non-LT data ---
-        uint16_t safe_len = (p_evt->params.rx_data.length < (SPIS_DATA_TX_BUFFER_SIZE - 1))
-                            ? p_evt->params.rx_data.length
-                            : (SPIS_DATA_TX_BUFFER_SIZE - 1);
+        if (p_evt->params.rx_data.length != SPIS_DATA_TX_BUFFER_SIZE)
+        {
+            NRF_LOG_WARNING("BLE NUS data ignored: length %u", (unsigned int)p_evt->params.rx_data.length);
+            return;
+        }
+
         memset(_TxDataBuff, 0, sizeof(_TxDataBuff));
-        memcpy(_TxDataBuff, p_evt->params.rx_data.p_data, safe_len);
+        memcpy(_TxDataBuff, p_evt->params.rx_data.p_data, SPIS_DATA_TX_BUFFER_SIZE);
 
-        // Forward to SPI
-        SS_SetTxbuffer(_TxDataBuff, safe_len);
-
-        // Check for STARTDFU / STARTRST commands
-        BC_ProcessBleCommand(_TxDataBuff, safe_len);
+        LT_DebugNotify("DBG:LT_RX");
+        SS_SetPhoneTxbuffer(_TxDataBuff, SPIS_DATA_TX_BUFFER_SIZE);
     }
 }
 /**@snippet [Handling the data received over BLE] */
