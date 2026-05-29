@@ -1,0 +1,17 @@
+pca10040/s132/ses/Output/
+*.emSession
+*.o
+*.d
+*.elf
+*.map
+*.hex
+*.bin
+*.lst
+
+# Local assistant/tool settings
+.claude/settings.local.json
+
+# Generated firmware packages and merge outputs
+Merge_and_zip/*.hex
+Merge_and_zip/*.zip
+Merge_and_zip/test/

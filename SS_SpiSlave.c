@@ -108,7 +108,17 @@ void SS_SetConnectionHandle(uint16_t connHandle)
  */
 ret_code_t SS_SetTxbuffer(uint8_t *pData, uint16_t length)
 {
-    memcpy(m_tx_buf, pData, length);
+    if (_spiSlaveInit != true)
+    {
+        return NRF_ERROR_INVALID_STATE;
+    }
+
+    uint16_t copy_len = (length < (SPIS_DATA_TX_BUFFER_SIZE - 1))
+                        ? length
+                        : (SPIS_DATA_TX_BUFFER_SIZE - 1);
+
+    memset(m_tx_buf, 0, sizeof(m_tx_buf));
+    memcpy(m_tx_buf, pData, copy_len);
 
     if (_connHandle != BLE_CONN_HANDLE_INVALID)
     {
@@ -119,10 +129,34 @@ ret_code_t SS_SetTxbuffer(uint8_t *pData, uint16_t length)
         m_tx_buf[m_tx_length - 1] = 0x00;
     }
 
-    if (_spiSlaveInit == true)
+    return nrf_drv_spis_buffers_set(&spis, m_tx_buf, sizeof(m_tx_buf), m_rx_buf, sizeof(m_rx_buf)); 
+}
+
+/*******************************************************************************/
+/**
+ * @brief Function to setting time update Tx buffer of spi slave
+ *
+ * @param pData, pointer to the data to transfer
+ * @param length, length of data to transfer
+ *
+ * @return Return NRF_SUCCESS else error code
+ */
+ret_code_t SS_SetTimeUpdateTxbuffer(uint8_t *pData, uint16_t length)
+{
+    if (_spiSlaveInit != true)
     {
-        return nrf_drv_spis_buffers_set(&spis, m_tx_buf, sizeof(m_tx_buf), m_rx_buf, sizeof(m_rx_buf)); 
+        return NRF_ERROR_INVALID_STATE;
     }
+
+    if (length > SPIS_DATA_TX_BUFFER_SIZE)
+    {
+        return NRF_ERROR_DATA_SIZE;
+    }
+
+    memset(m_tx_buf, 0, sizeof(m_tx_buf));
+    memcpy(m_tx_buf, pData, length);
+
+    return nrf_drv_spis_buffers_set(&spis, m_tx_buf, sizeof(m_tx_buf), m_rx_buf, sizeof(m_rx_buf));
 }
 
 /*******************************************************************************/

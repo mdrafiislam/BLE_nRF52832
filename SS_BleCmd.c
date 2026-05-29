@@ -69,6 +69,8 @@ ret_code_t BC_ProcessBleCommand(uint8_t *pData, uint16_t length)
         NRF_LOG_INFO("Restart device");
         app_timer_start(_bleCmdTmId, APP_TIMER_TICKS(2000), NULL);
     }
+
+    return NRF_SUCCESS;
 }
 
 /*******************************************************************************/
@@ -88,6 +90,46 @@ ret_code_t BC_InitBleCommand(void)
     err_code = app_timer_create(&_bleCmdTmId, APP_TIMER_MODE_SINGLE_SHOT, BCi_BleCmdTimeOut);
 
     return err_code;
+}
+
+/*******************************************************************************/
+/**
+ * @brief Check if data is a valid UT time-update command
+ *
+ * Validates: starts with "UT", exactly 18 bytes total,
+ * bytes 2-17 are valid hex characters (case-insensitive).
+ *
+ * @param[in]  pData   Pointer to received data
+ * @param[in]  length  Length of received data
+ *
+ * @return true if valid UT command, false otherwise
+ */
+bool BC_IsUtPrefix(const uint8_t *pData, uint16_t length)
+{
+    if (length != 18)
+    {
+        return false;
+    }
+
+    if (pData[0] != 'U' && pData[0] != 'u')
+    {
+        return false;
+    }
+    if (pData[1] != 'T' && pData[1] != 't')
+    {
+        return false;
+    }
+
+    for (int i = 2; i < 18; i++)
+    {
+        uint8_t c = pData[i];
+        if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')))
+        {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 /** @} */

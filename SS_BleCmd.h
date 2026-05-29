@@ -14,6 +14,7 @@
 #ifndef _SS_BLE_CMD_H
 #define _SS_BLE_CMD_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 /**
@@ -27,9 +28,22 @@
 ret_code_t BC_ProcessBleCommand(uint8_t *pData, uint16_t length);
 
 /**
- * @author 
+ * @brief Check if data is a valid UT time-update command
  *
- * @brief 	Function to initialize BLE command
+ * Validates: starts with "UT", exactly 18 bytes total,
+ * bytes 2-17 are valid hex characters (case-insensitive).
+ *
+ * @param[in]  pData   Pointer to received data
+ * @param[in]  length  Length of received data
+ *
+ * @return true if valid UT command, false otherwise
+ */
+bool BC_IsUtPrefix(const uint8_t *pData, uint16_t length);
+
+/**
+ * @author
+ *
+ * @brief  Function to initialize BLE command
  *
  * @param[in] 	None
  *

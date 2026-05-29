@@ -58,6 +58,16 @@ void SS_UninitSpiSlave(void);
 ret_code_t SS_SetTxbuffer(uint8_t *pData, uint16_t length);
 
 /**
+ * @brief Function to set time update Tx buffer of spi slave
+ *
+ * @param pData, pointer to the 10-byte time update data to transfer
+ * @param length, length of data to transfer
+ *
+ * @return Return NRF_SUCCESS else error code
+ */
+ret_code_t SS_SetTimeUpdateTxbuffer(uint8_t *pData, uint16_t length);
+
+/**
  * @author 
  *
  * @brief 	Function to initialize spi slave

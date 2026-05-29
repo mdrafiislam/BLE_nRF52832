@@ -51,6 +51,7 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <stdio.h>
 #include "nordic_common.h"
 #include "nrf.h"
 #include "ble_hci.h"
@@ -70,6 +71,8 @@
 #include "nrf_pwr_mgmt.h"
 #include "app_scheduler.h"
 #include "nrf_drv_spis.h"
+
+#include "ble_dis.h" //Device Information Service (DIS) 
 
 #if defined (UART_PRESENT)
 #include "nrf_uart.h"
@@ -122,7 +125,8 @@ static uint16_t   m_conn_handle          = BLE_CONN_HANDLE_INVALID;             
 static uint16_t   m_ble_nus_max_data_len = BLE_GATT_ATT_MTU_DEFAULT - 3;            /**< Maximum length of data (in bytes) that can be transmitted to the peer by the Nordic UART service module. */
 static ble_uuid_t m_adv_uuids[]          =                                          /**< Universally unique service identifier. */
 {
-    {BLE_UUID_NUS_SERVICE, NUS_SERVICE_UUID_TYPE}
+    {BLE_UUID_NUS_SERVICE, NUS_SERVICE_UUID_TYPE},
+    {BLE_UUID_DEVICE_INFORMATION_SERVICE, BLE_UUID_TYPE_BLE} // Add DIS UUID
 };
 static uint8_t _RxDataBuff[SPIS_DATA_RX_BUFFER_SIZE];
 static uint8_t _TxDataBuff[SPIS_DATA_TX_BUFFER_SIZE + 1];
@@ -206,20 +210,69 @@ static void nrf_qwr_error_handler(uint32_t nrf_error)
 /**@snippet [Handling the data received over BLE] */
 static void nus_data_handler(ble_nus_evt_t * p_evt)
 {
-    uint8_t len = sizeof(_TxDataBuff);
-
     if (p_evt->type == BLE_NUS_EVT_RX_DATA)
     {
         NRF_LOG_DEBUG("Received data from BLE NUS. Writing data on UART.");
         NRF_LOG_HEXDUMP_DEBUG(p_evt->params.rx_data.p_data, p_evt->params.rx_data.length);
 
+        // --- UT time-update command path ---
+        if (BC_IsUtPrefix(p_evt->params.rx_data.p_data, p_evt->params.rx_data.length))
+        {
+            NRF_LOG_INFO("UT time-update command received");
+
+            // Parse 16 hex chars (bytes 2-17) as big-endian uint64_t millisecond timestamp
+            uint64_t timestamp_ms = 0;
+            for (int i = 2; i < 18; i++)
+            {
+                uint8_t c = p_evt->params.rx_data.p_data[i];
+                uint8_t nibble;
+                if (c >= '0' && c <= '9')
+                    nibble = c - '0';
+                else if (c >= 'a' && c <= 'f')
+                    nibble = c - 'a' + 10;
+                else
+                    nibble = c - 'A' + 10;
+                timestamp_ms = (timestamp_ms << 4) | nibble;
+            }
+
+            // Convert to nearest-second unix timestamp
+            uint64_t unix_seconds = (timestamp_ms + 500ULL) / 1000ULL;
+
+            // Format as 8-char uppercase hex
+            char spi_payload[11];  // "UT" + 8 hex chars + null (null for safety only)
+            snprintf(spi_payload, sizeof(spi_payload), "UT%08lX", (unsigned long)unix_seconds);
+
+            // Send to STM32 via SPI (exactly 10 bytes: "UT" + 8 hex chars)
+            NRF_LOG_INFO("UT SPI payload bytes[0..4]: %02X %02X %02X %02X %02X",
+                         (unsigned int)(uint8_t)spi_payload[0],
+                         (unsigned int)(uint8_t)spi_payload[1],
+                         (unsigned int)(uint8_t)spi_payload[2],
+                         (unsigned int)(uint8_t)spi_payload[3],
+                         (unsigned int)(uint8_t)spi_payload[4]);
+            NRF_LOG_INFO("UT SPI payload bytes[5..9]: %02X %02X %02X %02X %02X",
+                         (unsigned int)(uint8_t)spi_payload[5],
+                         (unsigned int)(uint8_t)spi_payload[6],
+                         (unsigned int)(uint8_t)spi_payload[7],
+                         (unsigned int)(uint8_t)spi_payload[8],
+                         (unsigned int)(uint8_t)spi_payload[9]);
+            SS_SetTimeUpdateTxbuffer((uint8_t *)spi_payload, 10);
+            NRF_LOG_INFO("UT SPI payload: %s", spi_payload);
+
+            return;  // Skip normal SPI forwarding and command processing
+        }
+
+        // --- Normal path: forward all non-UT data ---
+        uint16_t safe_len = (p_evt->params.rx_data.length < (SPIS_DATA_TX_BUFFER_SIZE - 1))
+                            ? p_evt->params.rx_data.length
+                            : (SPIS_DATA_TX_BUFFER_SIZE - 1);
         memset(_TxDataBuff, 0, sizeof(_TxDataBuff));
-        memcpy(_TxDataBuff, &p_evt->params.rx_data.p_data[0], p_evt->params.rx_data.length);
+        memcpy(_TxDataBuff, p_evt->params.rx_data.p_data, safe_len);
 
-        _TxDataBuff[len - 1] = p_evt->params.rx_data.length + 1;
+        // Forward to SPI
+        SS_SetTxbuffer(_TxDataBuff, safe_len);
 
-        SS_SetTxbuffer(_TxDataBuff, sizeof(_TxDataBuff));
-        BC_ProcessBleCommand(_TxDataBuff, sizeof(_TxDataBuff));
+        // Check for STARTDFU / STARTRST commands
+        BC_ProcessBleCommand(_TxDataBuff, safe_len);
     }
 }
 /**@snippet [Handling the data received over BLE] */
@@ -586,6 +639,22 @@ static void gpio_cfg(void)
 }
 
 
+/**@brief Function to set up and enable the DIS service
+ */
+static void dis_init(void) {
+    ble_dis_init_t dis_init_obj;
+    memset(&dis_init_obj, 0, sizeof(dis_init_obj));
+
+    //ble_srv_ascii_to_utf8(&dis_init_obj.manufact_name_str, "Nordic Semiconductor");
+    ble_srv_ascii_to_utf8(&dis_init_obj.fw_rev_str, "20q16cst1sl63ci10rotUT"); // Set firmware version
+    ble_srv_ascii_to_utf8(&dis_init_obj.hw_rev_str, "AIM21");
+    ble_srv_ascii_to_utf8(&dis_init_obj.model_num_str, "nRF52832");
+
+    dis_init_obj.dis_char_rd_sec = 1;
+
+    uint32_t err_code = ble_dis_init(&dis_init_obj);
+    APP_ERROR_CHECK(err_code);
+}
 
 /**@brief Application main function.
  */
@@ -613,6 +682,8 @@ int main(void)
     advertising_init();
     conn_params_init();
     conn_evt_len_ext_set(true);
+
+    dis_init();
 
     sd_power_dcdc_mode_set(NRF_POWER_DCDC_ENABLE);
 
