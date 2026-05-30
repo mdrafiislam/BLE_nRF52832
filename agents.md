@@ -8,7 +8,7 @@ Recent LT time-update work added temporary BLE debug notifications so LT deliver
 
 ## LT Debug Notifications
 
-The debug feature is macro-gated by `ENABLE_LT_BLE_DEBUG`, currently defaulting to `1` in `SS_SpiSlave.h`.
+The debug feature is macro-gated by `ENABLE_LT_BLE_DEBUG`, currently defaulting to `0` in `SS_SpiSlave.h`.
 
 Debug messages are sent through the existing Nordic UART Service TX notification path. They must remain short, best-effort, and non-fatal:
 
@@ -26,6 +26,7 @@ Current debug messages:
 - `DBG:LT_IRQ_LOW`: MISO pulled low to notify STM32 in `SS_SpiSlave.c`.
 - `DBG:LT_CS_LOW`: CS observed low before timeout.
 - `DBG:LT_CS_TIMEOUT`: CS did not go low before `CS_NOTIFY_WAIT_MAX`.
+- `DBG:LT_CS_HIGH_TIMEOUT`: CS did not return high before `CS_NOTIFY_WAIT_MAX`.
 - `DBG:LT_SPIS_INIT_FAIL`: SPIS reinitialization failed after CS went low.
 - `DBG:LT_ARM_FAIL`: LT TX buffer arming failed.
 - `DBG:LT_SENT_10`: LT transfer completed with at least 10 bytes sent.

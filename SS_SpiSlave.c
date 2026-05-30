@@ -200,17 +200,24 @@ static ret_code_t SSi_RestoreNormalSpis(void)
     return SSi_ArmTxBuffer(m_normal_tx_buf);
 }
 
-static void SSi_WaitForCsHigh(void)
+static ret_code_t SSi_WaitForCsHigh(void)
 {
+    uint32_t checks;
+
     /*
      * If a phone packet arrives while CS is low, a master transaction is
      * already in progress. Wait for the STM32 to release CS before changing
      * SPIS state or using MISO as a notification GPIO.
      */
-    while (SSi_IsCsLow() == true)
+    for (checks = 0; checks < CS_NOTIFY_WAIT_MAX; checks++)
     {
-        /* Wait until the active master transaction releases CS. */
+        if (SSi_IsCsLow() != true)
+        {
+            return NRF_SUCCESS;
+        }
     }
+
+    return NRF_ERROR_TIMEOUT;
 }
 
 static ret_code_t SSi_InterruptStm32AndArmPhoneTx(void)
@@ -294,6 +301,7 @@ static void SSi_SpisScheduledEvent(void *pData, uint16_t length)
 {
     /* Copy the scheduler payload into a local event object. */
     nrf_drv_spis_event_t event = *(nrf_drv_spis_event_t*)pData;
+    ret_code_t err_code;
 
     UNUSED_PARAMETER(length);
 
@@ -371,8 +379,21 @@ static void SSi_SpisScheduledEvent(void *pData, uint16_t length)
              * signal the STM32 and arm the queued phone packet for the next
              * safe master transaction.
              */
-            SSi_WaitForCsHigh();
-            (void)SSi_InterruptStm32AndArmPhoneTx();
+            err_code = SSi_WaitForCsHigh();
+            if (err_code != NRF_SUCCESS)
+            {
+                NRF_LOG_WARNING("Phone SPI bridge discarded: CS stayed low");
+                SSi_LtDebugNotify("DBG:LT_CS_HIGH_TIMEOUT");
+                SSi_ClearPhoneTx(true);
+                (void)SSi_ArmTxBuffer(m_normal_tx_buf);
+                return;
+            }
+
+            err_code = SSi_InterruptStm32AndArmPhoneTx();
+            if (err_code != NRF_SUCCESS)
+            {
+                NRF_LOG_WARNING("Phone SPI bridge arm failed: 0x%08X", (unsigned int)err_code);
+            }
         }
         else
         {
@@ -507,6 +528,11 @@ ret_code_t SS_SetPhoneTxbuffer(uint8_t *pData, uint16_t length)
     if (length != SPIS_DATA_TX_BUFFER_SIZE)
     {
         return NRF_ERROR_DATA_SIZE;
+    }
+
+    if ((_phoneTxPending == true) || (_phoneTxArmed == true))
+    {
+        return NRF_ERROR_BUSY;
     }
 
     /*

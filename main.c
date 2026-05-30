@@ -108,7 +108,7 @@
 #define MAX_CONN_PARAMS_UPDATE_COUNT    3                                           /**< Number of attempts before giving up the connection parameter negotiation. */
 
 #define DEAD_BEEF                       0xDEADBEEF                                  /**< Value used as error code on stack dump, can be used to identify stack location on stack unwind. */
-#define SCHED_MAX_EVENT_DATA_SIZE       MAX(APP_TIMER_SCHED_EVENT_DATA_SIZE, sizeof(nrf_drv_spis_event_t))             /**< Maximum size of scheduler events. */
+#define SCHED_MAX_EVENT_DATA_SIZE       MAX(MAX(APP_TIMER_SCHED_EVENT_DATA_SIZE, sizeof(nrf_drv_spis_event_t)), SPIS_DATA_TX_BUFFER_SIZE)             /**< Maximum size of scheduler events. */
 #define DFU_START_COMMAND               "STARTDFU"
 #define RESET_DEVICE_COMMAND            "STARTRST"
 #ifdef SVCALL_AS_NORMAL_FUNCTION
@@ -131,16 +131,34 @@ static ble_uuid_t m_adv_uuids[]          =                                      
     {BLE_UUID_DEVICE_INFORMATION_SERVICE, BLE_UUID_TYPE_BLE} // Add DIS UUID
 };
 static uint8_t _RxDataBuff[SPIS_DATA_RX_BUFFER_SIZE];
-static uint8_t _TxDataBuff[SPIS_DATA_TX_BUFFER_SIZE + 1];
 
 static void DataTxOnBLE(uint8_t *pData, uint16_t length);
 static void LT_DebugNotify(const char *msg);
+static void PhoneTxScheduledEvent(void *pData, uint16_t length);
 
 static bool IsExactBleCommand(uint8_t const *pData, uint16_t length, char const *pCommand)
 {
     uint16_t command_length = (uint16_t)strlen(pCommand);
 
     return ((length == command_length) && (memcmp(pData, pCommand, command_length) == 0));
+}
+
+static void PhoneTxScheduledEvent(void *pData, uint16_t length)
+{
+    ret_code_t err_code;
+
+    if (length != SPIS_DATA_TX_BUFFER_SIZE)
+    {
+        NRF_LOG_WARNING("Scheduled phone SPI bridge payload ignored: length %u", (unsigned int)length);
+        return;
+    }
+
+    LT_DebugNotify("DBG:LT_RX");
+    err_code = SS_SetPhoneTxbuffer((uint8_t *)pData, length);
+    if (err_code != NRF_SUCCESS)
+    {
+        NRF_LOG_WARNING("Phone SPI bridge payload not queued: 0x%08X", (unsigned int)err_code);
+    }
 }
 
 /**@brief Function for assert macro callback.
@@ -220,6 +238,8 @@ static void nrf_qwr_error_handler(uint32_t nrf_error)
 /**@snippet [Handling the data received over BLE] */
 static void nus_data_handler(ble_nus_evt_t * p_evt)
 {
+    ret_code_t err_code;
+
     if (p_evt->type == BLE_NUS_EVT_RX_DATA)
     {
         NRF_LOG_DEBUG("Received data from BLE NUS. Writing data on UART.");
@@ -242,11 +262,14 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
             return;
         }
 
-        memset(_TxDataBuff, 0, sizeof(_TxDataBuff));
-        memcpy(_TxDataBuff, p_evt->params.rx_data.p_data, SPIS_DATA_TX_BUFFER_SIZE);
+        err_code = app_sched_event_put(p_evt->params.rx_data.p_data,
+                                       SPIS_DATA_TX_BUFFER_SIZE,
+                                       PhoneTxScheduledEvent);
 
-        LT_DebugNotify("DBG:LT_RX");
-        SS_SetPhoneTxbuffer(_TxDataBuff, SPIS_DATA_TX_BUFFER_SIZE);
+        if (err_code != NRF_SUCCESS)
+        {
+            NRF_LOG_WARNING("BLE NUS data ignored: scheduler full, err 0x%08X", (unsigned int)err_code);
+        }
     }
 }
 /**@snippet [Handling the data received over BLE] */
