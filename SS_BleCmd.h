@@ -14,7 +14,6 @@
 #ifndef _SS_BLE_CMD_H
 #define _SS_BLE_CMD_H
 
-#include <stdbool.h>
 #include <stdint.h>
 
 /**
@@ -26,19 +25,6 @@
  * @return Return NRF_SUCCESS else error code
  */
 ret_code_t BC_ProcessBleCommand(uint8_t *pData, uint16_t length);
-
-/**
- * @brief Check if data is a valid LT time-update command
- *
- * Validates: starts with "LT", exactly 18 bytes total,
- * bytes 2-17 are valid hex characters (case-insensitive).
- *
- * @param[in]  pData   Pointer to received data
- * @param[in]  length  Length of received data
- *
- * @return true if valid LT command, false otherwise
- */
-bool BC_IsLtPrefix(const uint8_t *pData, uint16_t length);
 
 /**
  * @author

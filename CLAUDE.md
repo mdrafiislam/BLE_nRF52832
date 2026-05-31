@@ -24,8 +24,8 @@ This is an nRF52832 firmware project implementing an SPI-to-BLE bridge using the
 ## Custom Source Files (in project root)
 
 - **`main.c`** (~693 lines) — Application entry point. Initializes all subsystems, runs the BLE event handler (`ble_evt_handler`), handles NUS data callbacks (`nus_data_handler`), manages DIS, and bridges SPI <-> BLE data.
-- **`SS_SpiSlave.c` / `SS_SpiSlave.h`** — SPI slave wrapper using SPIS instance 1. RX buffer: 244 bytes, TX buffer: 10 bytes (normal traffic reserves last byte for BLE connection status; LT time responses use all 10 bytes). Uses `app_scheduler` to defer SPI events to the main loop.
-- **`SS_BleCmd.c` / `SS_BleCmd.h`** — BLE command processor. Recognizes "STARTDFU" (triggers bootloader via GPREGRET) and "STARTRST" (system reset after 2s delay). Validates "LT" prefix time-sync commands (18 bytes: "LT" + 16 hex chars representing milliseconds, converted to unix seconds).
+- **`SS_SpiSlave.c` / `SS_SpiSlave.h`** — SPI slave wrapper using SPIS instance 1. RX buffer: 244 bytes, TX buffer: 10 bytes (normal traffic reserves last byte for BLE connection status; BLE-to-SPI payloads use all 10 bytes). Uses `app_scheduler` to defer SPI events to the main loop.
+- **`SS_BleCmd.c` / `SS_BleCmd.h`** — BLE command processor. Recognizes "STARTDFU" (triggers bootloader via GPREGRET) and "STARTRST" (system reset after 2s delay).
 
 ## Architecture
 
@@ -38,12 +38,12 @@ External Master (SPI)                    nRF52832 (SPI2BLE)              BLE Cen
      |  SPI MISO (pin 3)                        |  BLE NUS Service (ble_nus.c)       |
      +<---------------------------------------+------------------------------------->
      |                                         |                                    |
-     |  "LT" + 8 hex chars (time-sync resp)    |  Receives from NUS, forwards to SPI  |
+     |  Any exact 10-byte NUS payload          |  Receives from NUS, forwards to SPI  |
 ```
 
 **Two data directions:**
 1. **SPI -> BLE**: External master writes SPI -> nRF52 captures via SPIS -> sends over BLE NUS notification from the SPI receive callback
-2. **BLE -> SPI**: Central writes BLE NUS -> nRF52 receives -> forwards to external master via SPI MISO. Special "LT" prefix commands trigger time-sync response.
+2. **BLE -> SPI**: Central writes an exact 10-byte BLE NUS payload -> nRF52 receives -> forwards it unchanged to the external master via SPI MISO.
 
 **SPI Pin mapping** (from `sdk_config.h`): SCK=2, MISO=3, MOSI=29, CS=4. Mode 0.
 

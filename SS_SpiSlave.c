@@ -523,7 +523,7 @@ ret_code_t SS_SetPhoneTxbuffer(uint8_t *pData, uint16_t length)
 
     /*
      * Phone-originated packets must be exactly one SPIS TX buffer long.
-     * For LT this is the 10-byte payload: "LT" plus 8 uppercase hex chars.
+     * Payload contents are forwarded unchanged.
      */
     if (length != SPIS_DATA_TX_BUFFER_SIZE)
     {
