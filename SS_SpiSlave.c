@@ -349,15 +349,18 @@ static void SSi_SpisScheduledEvent(void *pData, uint16_t length)
             }
             else
             {
+                NRF_LOG_WARNING("Phone SPI bridge transfer incomplete: %u bytes", (unsigned int)event.tx_amount);
+
+#if ENABLE_LT_BLE_DEBUG
                 /*
                  * Keep the debug string short enough for BLE notification use.
                  * The largest expected rendered form is DBG:LT_INCOMPLETE_255.
                  */
                 char incomplete_msg[sizeof("DBG:LT_INCOMPLETE_255")];
 
-                NRF_LOG_WARNING("Phone SPI bridge transfer incomplete: %u bytes", (unsigned int)event.tx_amount);
                 snprintf(incomplete_msg, sizeof(incomplete_msg), "DBG:LT_INCOMPLETE_%u", (unsigned int)event.tx_amount);
                 SSi_LtDebugNotify(incomplete_msg);
+#endif
             }
 
             SSi_ClearPhoneTx(false);
@@ -417,7 +420,9 @@ static void SSi_SpisScheduledEvent(void *pData, uint16_t length)
  */
 static void SSi_SpisEventHandler(nrf_drv_spis_event_t event)
 {
-    app_sched_event_put(&event, sizeof(nrf_drv_spis_event_t), SSi_SpisScheduledEvent);
+    ret_code_t err_code = app_sched_event_put(&event, sizeof(nrf_drv_spis_event_t), SSi_SpisScheduledEvent);
+
+    APP_ERROR_CHECK(err_code);
 }
 
 /*******************************************************************************/
