@@ -8,7 +8,7 @@ This is an embedded firmware project for the **nRF52832** SoC that implements an
 
 - **`main.c`** — Application entry point. Initializes all subsystems, BLE event handling, NUS data callbacks, DIS, and SPI-to-BLE bridging.
 - **`SS_SpiSlave.c` / `SS_SpiSlave.h`** — SPI slave driver wrapper using SPIS instance 1. RX buffer 244 bytes, TX buffer 10 bytes.
-- **`SS_BleCmd.c` / `SS_BleCmd.h`** — BLE command processor. Handles "STARTDFU" (triggers bootloader), "STARTRST" (system reset), and "UT" prefix time-sync commands.
+- **`SS_BleCmd.c` / `SS_BleCmd.h`** — BLE command processor. Handles "STARTDFU" (triggers bootloader) and "STARTRST" (system reset).
 - **`pca10040/s132/ses/`** — SEGGER Embedded Studio project (`ble_app_spis_pca10040_s132.emProject`), linker config (`flash_placement.xml`), board config.
 - **`pca10040/s132/config/sdk_config.h`** — All SDK feature flags, pin mappings, and system configuration.
 - **`Merge_and_zip/`** — DFU pipeline: SoftDevice hex, bootloader hex, private signing key, merge script (`ble_spis_merge_zip_Generator.bat`), and output HEX/ZIP files.
@@ -65,15 +65,17 @@ This is an embedded firmware project for the **nRF52832** SoC that implements an
 
 # Firmware Rules
 
-- **SPI configuration**: SPIS instance 1, pins: SCK=2, MISO=3, MOSI=29, CS=4, Mode 0. RX buffer 244 bytes, TX buffer 10 bytes (normal traffic reserves last byte for BLE connection status; UT time responses use all 10 bytes).
+- **SPI configuration**: SPIS instance 1, pins: SCK=2, MISO=3, MOSI=29, CS=4, Mode 0. RX buffer 244 bytes, TX buffer 10 bytes (normal traffic reserves last byte for BLE connection status; BLE-to-SPI payloads use all 10 bytes).
 - **BLE config**: Advertising interval 3200 units (2000ms). Connection interval 60–70ms. Slave latency 1. hvn_tx_queue_size 20.
 - **NUS UUID**: `6E400000-B5A3-F393-E0A9-E50E24DCCA9E`. The `NUS_BASE_UUID` in SDK `ble_nus.c` (line 64) is expected to be `{{0x31, 0xAC, 0x24, 0x85, 0x9B, 0x50, 0x22, 0xB5, 0xD3, 0x48, 0x2D, 0xD9, 0xA9, 0xD2, 0xA1, 0x4A}}`; this is already true in this checkout, but must be checked when using a fresh SDK.
-- **DIS**: Model="nRF52832", HW rev="AIM21", FW rev="20q16cst1sl63ci10rotUT". Added to advertising scan response.
+- **DIS**: Model="nRF52832", HW rev="AIM21", FW rev="20q16cst1sl63ci10rotLT". Added to advertising scan response.
 - **RAM layout**: `RAM_START=0x20004650` (moved from default `0x20002AD8` to avoid overlap with enlarged `hvn_tx_queue`). Flash app starts at `0x26000`.
 - **Command protocol**:
-  - "STARTDFU" — sets GPREGRET register `0xB0` bit 0, triggers bootloader after 2s delay.
-  - "STARTRST" — triggers system reset after 2s delay.
-  - "UT" + 16 hex chars (18 bytes) — time-sync command. Parsed as millisecond timestamp, converted to unix seconds, response sent back as "UT" + 8 hex chars via SPI MISO.
+  - Exact "STARTDFU" — sets GPREGRET register `0xB0` bit 0, triggers bootloader after 2s delay.
+  - Exact "STARTRST" — triggers system reset after 2s delay.
+  - Any other exact 10-byte NUS payload — copied into the app scheduler and forwarded unchanged via SPI MISO.
+- **BLE -> SPI delivery**: only one phone payload may be pending or armed. If CS is high, the nRF temporarily releases SPIS and pulls MISO low to notify STM32. CS waits are bounded by `CS_NOTIFY_WAIT_MAX`; timeout and discard paths restore normal polling.
+- **Bridge debug notifications**: `ENABLE_LT_BLE_DEBUG` defaults to `0`. Keep the legacy `DBG:LT_*` names short, best-effort, and non-fatal.
 - **sdk_config.h** is the single source of truth for all SDK feature flags and pin assignments. Do not change without understanding downstream effects on memory layout and BLE behavior.
 - **`NRF_SDH_BLE_GAP_EVENT_LENGTH`** is set to 10 (not default 6) — increasing radio on-time. Do not reduce without checking connection stability.
 

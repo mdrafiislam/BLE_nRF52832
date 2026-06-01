@@ -20,7 +20,7 @@ SCK Pin = 2\
 Mode = 0\
 Other config = default\
 RX buffer = 244 bytes\
-TX buffer = 10 bytes (normal byte 9 is BLE connection status; UT time-update uses all 10 bytes)\
+TX buffer = 10 bytes (normal byte 9 is BLE connection status; BLE-to-SPI payloads use all 10 bytes)\
 SPIS_INSTANCE 1
 
 BLE Config:\

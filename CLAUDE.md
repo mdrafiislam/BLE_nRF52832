@@ -23,9 +23,9 @@ This is an nRF52832 firmware project implementing an SPI-to-BLE bridge using the
 
 ## Custom Source Files (in project root)
 
-- **`main.c`** (~693 lines) — Application entry point. Initializes all subsystems, runs the BLE event handler (`ble_evt_handler`), handles NUS data callbacks (`nus_data_handler`), manages DIS, and bridges SPI <-> BLE data.
-- **`SS_SpiSlave.c` / `SS_SpiSlave.h`** — SPI slave wrapper using SPIS instance 1. RX buffer: 244 bytes, TX buffer: 10 bytes (normal traffic reserves last byte for BLE connection status; UT time responses use all 10 bytes). Uses `app_scheduler` to defer SPI events to the main loop.
-- **`SS_BleCmd.c` / `SS_BleCmd.h`** — BLE command processor. Recognizes "STARTDFU" (triggers bootloader via GPREGRET) and "STARTRST" (system reset after 2s delay). Validates "UT" prefix time-sync commands (18 bytes: "UT" + 16 hex chars representing milliseconds, converted to unix seconds).
+- **`main.c`** (~720 lines) — Application entry point. Initializes all subsystems, runs the BLE event handler (`ble_evt_handler`), handles NUS data callbacks (`nus_data_handler`), manages DIS, and bridges SPI <-> BLE data.
+- **`SS_SpiSlave.c` / `SS_SpiSlave.h`** — SPI slave wrapper using SPIS instance 1. RX buffer: 244 bytes, TX buffer: 10 bytes (normal traffic reserves last byte for BLE connection status; BLE-to-SPI payloads use all 10 bytes). Uses `app_scheduler` to defer SPI events to the main loop.
+- **`SS_BleCmd.c` / `SS_BleCmd.h`** — BLE command processor. Recognizes "STARTDFU" (triggers bootloader via GPREGRET) and "STARTRST" (system reset after 2s delay).
 
 ## Architecture
 
@@ -38,18 +38,27 @@ External Master (SPI)                    nRF52832 (SPI2BLE)              BLE Cen
      |  SPI MISO (pin 3)                        |  BLE NUS Service (ble_nus.c)       |
      +<---------------------------------------+------------------------------------->
      |                                         |                                    |
-     |  "UT" + 8 hex chars (time-sync resp)    |  Receives from NUS, forwards to SPI  |
+     |  Any exact 10-byte NUS payload          |  Receives from NUS, forwards to SPI  |
 ```
 
 **Two data directions:**
 1. **SPI -> BLE**: External master writes SPI -> nRF52 captures via SPIS -> sends over BLE NUS notification from the SPI receive callback
-2. **BLE -> SPI**: Central writes BLE NUS -> nRF52 receives -> forwards to external master via SPI MISO. Special "UT" prefix commands trigger time-sync response.
+2. **BLE -> SPI**: Central writes an exact 10-byte BLE NUS payload -> nRF52 receives -> forwards it unchanged to the external master via SPI MISO.
+
+**BLE -> SPI delivery details:**
+- Exact `STARTDFU` and `STARTRST` commands are handled before bridge forwarding.
+- Other NUS RX writes must be exactly 10 bytes. Payload contents are not validated or transformed.
+- NUS RX copies accepted payloads into the app scheduler before SPI work runs.
+- Only one phone payload may be pending or armed. A second payload returns `NRF_ERROR_BUSY`.
+- If CS is high, the nRF temporarily releases SPIS and pulls MISO low to notify STM32. The STM32 still starts transfers by pulling CS low and driving SCK.
+- CS-low and CS-high waits are bounded by `CS_NOTIFY_WAIT_MAX`. Timeout and discard paths restore normal polling.
+- `ENABLE_LT_BLE_DEBUG` defaults to `0`. Existing `DBG:LT_*` messages are legacy names for optional best-effort bridge diagnostics.
 
 **SPI Pin mapping** (from `sdk_config.h`): SCK=2, MISO=3, MOSI=29, CS=4. Mode 0.
 
 **BLE Services**:
 - **NUS** (UUID `6E400000-B5A3-F393-E0A9-E50E24DCCA9E`): Primary data channel
-- **DIS** (UUID `0x180A`): Model="nRF52832", HW rev="AIM21", FW rev="20q16cst1sl63ci10rotUT"
+- **DIS** (UUID `0x180A`): Model="nRF52832", HW rev="AIM21", FW rev="20q16cst1sl63ci10rotLT"
 
 ## Build Commands
 

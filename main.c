@@ -108,7 +108,9 @@
 #define MAX_CONN_PARAMS_UPDATE_COUNT    3                                           /**< Number of attempts before giving up the connection parameter negotiation. */
 
 #define DEAD_BEEF                       0xDEADBEEF                                  /**< Value used as error code on stack dump, can be used to identify stack location on stack unwind. */
-#define SCHED_MAX_EVENT_DATA_SIZE       MAX(APP_TIMER_SCHED_EVENT_DATA_SIZE, sizeof(nrf_drv_spis_event_t))             /**< Maximum size of scheduler events. */
+#define SCHED_MAX_EVENT_DATA_SIZE       MAX(MAX(APP_TIMER_SCHED_EVENT_DATA_SIZE, sizeof(nrf_drv_spis_event_t)), SPIS_DATA_TX_BUFFER_SIZE)             /**< Maximum size of scheduler events. */
+#define DFU_START_COMMAND               "STARTDFU"
+#define RESET_DEVICE_COMMAND            "STARTRST"
 #ifdef SVCALL_AS_NORMAL_FUNCTION
 #define SCHED_QUEUE_SIZE                20                                          /**< Maximum number of events in the scheduler queue. More is needed in case of Serialization. */
 #else
@@ -129,9 +131,35 @@ static ble_uuid_t m_adv_uuids[]          =                                      
     {BLE_UUID_DEVICE_INFORMATION_SERVICE, BLE_UUID_TYPE_BLE} // Add DIS UUID
 };
 static uint8_t _RxDataBuff[SPIS_DATA_RX_BUFFER_SIZE];
-static uint8_t _TxDataBuff[SPIS_DATA_TX_BUFFER_SIZE + 1];
 
 static void DataTxOnBLE(uint8_t *pData, uint16_t length);
+static void LT_DebugNotify(const char *msg);
+static void PhoneTxScheduledEvent(void *pData, uint16_t length);
+
+static bool IsExactBleCommand(uint8_t const *pData, uint16_t length, char const *pCommand)
+{
+    uint16_t command_length = (uint16_t)strlen(pCommand);
+
+    return ((length == command_length) && (memcmp(pData, pCommand, command_length) == 0));
+}
+
+static void PhoneTxScheduledEvent(void *pData, uint16_t length)
+{
+    ret_code_t err_code;
+
+    if (length != SPIS_DATA_TX_BUFFER_SIZE)
+    {
+        NRF_LOG_WARNING("Scheduled phone SPI bridge payload ignored: length %u", (unsigned int)length);
+        return;
+    }
+
+    LT_DebugNotify("DBG:LT_RX");
+    err_code = SS_SetPhoneTxbuffer((uint8_t *)pData, length);
+    if (err_code != NRF_SUCCESS)
+    {
+        NRF_LOG_WARNING("Phone SPI bridge payload not queued: 0x%08X", (unsigned int)err_code);
+    }
+}
 
 /**@brief Function for assert macro callback.
  *
@@ -210,69 +238,38 @@ static void nrf_qwr_error_handler(uint32_t nrf_error)
 /**@snippet [Handling the data received over BLE] */
 static void nus_data_handler(ble_nus_evt_t * p_evt)
 {
+    ret_code_t err_code;
+
     if (p_evt->type == BLE_NUS_EVT_RX_DATA)
     {
         NRF_LOG_DEBUG("Received data from BLE NUS. Writing data on UART.");
         NRF_LOG_HEXDUMP_DEBUG(p_evt->params.rx_data.p_data, p_evt->params.rx_data.length);
 
-        // --- UT time-update command path ---
-        if (BC_IsUtPrefix(p_evt->params.rx_data.p_data, p_evt->params.rx_data.length))
+        if ((IsExactBleCommand(p_evt->params.rx_data.p_data,
+                               p_evt->params.rx_data.length,
+                               DFU_START_COMMAND) == true) ||
+            (IsExactBleCommand(p_evt->params.rx_data.p_data,
+                               p_evt->params.rx_data.length,
+                               RESET_DEVICE_COMMAND) == true))
         {
-            NRF_LOG_INFO("UT time-update command received");
-
-            // Parse 16 hex chars (bytes 2-17) as big-endian uint64_t millisecond timestamp
-            uint64_t timestamp_ms = 0;
-            for (int i = 2; i < 18; i++)
-            {
-                uint8_t c = p_evt->params.rx_data.p_data[i];
-                uint8_t nibble;
-                if (c >= '0' && c <= '9')
-                    nibble = c - '0';
-                else if (c >= 'a' && c <= 'f')
-                    nibble = c - 'a' + 10;
-                else
-                    nibble = c - 'A' + 10;
-                timestamp_ms = (timestamp_ms << 4) | nibble;
-            }
-
-            // Convert to nearest-second unix timestamp
-            uint64_t unix_seconds = (timestamp_ms + 500ULL) / 1000ULL;
-
-            // Format as 8-char uppercase hex
-            char spi_payload[11];  // "UT" + 8 hex chars + null (null for safety only)
-            snprintf(spi_payload, sizeof(spi_payload), "UT%08lX", (unsigned long)unix_seconds);
-
-            // Send to STM32 via SPI (exactly 10 bytes: "UT" + 8 hex chars)
-            NRF_LOG_INFO("UT SPI payload bytes[0..4]: %02X %02X %02X %02X %02X",
-                         (unsigned int)(uint8_t)spi_payload[0],
-                         (unsigned int)(uint8_t)spi_payload[1],
-                         (unsigned int)(uint8_t)spi_payload[2],
-                         (unsigned int)(uint8_t)spi_payload[3],
-                         (unsigned int)(uint8_t)spi_payload[4]);
-            NRF_LOG_INFO("UT SPI payload bytes[5..9]: %02X %02X %02X %02X %02X",
-                         (unsigned int)(uint8_t)spi_payload[5],
-                         (unsigned int)(uint8_t)spi_payload[6],
-                         (unsigned int)(uint8_t)spi_payload[7],
-                         (unsigned int)(uint8_t)spi_payload[8],
-                         (unsigned int)(uint8_t)spi_payload[9]);
-            SS_SetTimeUpdateTxbuffer((uint8_t *)spi_payload, 10);
-            NRF_LOG_INFO("UT SPI payload: %s", spi_payload);
-
-            return;  // Skip normal SPI forwarding and command processing
+            BC_ProcessBleCommand((uint8_t *)p_evt->params.rx_data.p_data, p_evt->params.rx_data.length);
+            return;
         }
 
-        // --- Normal path: forward all non-UT data ---
-        uint16_t safe_len = (p_evt->params.rx_data.length < (SPIS_DATA_TX_BUFFER_SIZE - 1))
-                            ? p_evt->params.rx_data.length
-                            : (SPIS_DATA_TX_BUFFER_SIZE - 1);
-        memset(_TxDataBuff, 0, sizeof(_TxDataBuff));
-        memcpy(_TxDataBuff, p_evt->params.rx_data.p_data, safe_len);
+        if (p_evt->params.rx_data.length != SPIS_DATA_TX_BUFFER_SIZE)
+        {
+            NRF_LOG_WARNING("BLE NUS data ignored: length %u", (unsigned int)p_evt->params.rx_data.length);
+            return;
+        }
 
-        // Forward to SPI
-        SS_SetTxbuffer(_TxDataBuff, safe_len);
+        err_code = app_sched_event_put(p_evt->params.rx_data.p_data,
+                                       SPIS_DATA_TX_BUFFER_SIZE,
+                                       PhoneTxScheduledEvent);
 
-        // Check for STARTDFU / STARTRST commands
-        BC_ProcessBleCommand(_TxDataBuff, safe_len);
+        if (err_code != NRF_SUCCESS)
+        {
+            NRF_LOG_WARNING("BLE NUS data ignored: scheduler full, err 0x%08X", (unsigned int)err_code);
+        }
     }
 }
 /**@snippet [Handling the data received over BLE] */
@@ -619,6 +616,27 @@ static void DataTxOnBLE(uint8_t *pData, uint16_t length)
     ble_nus_data_send(&m_nus, _RxDataBuff, &length, m_conn_handle);
 }
 
+/**@brief Function to transmit short LT debug messages over BLE.
+ */
+static void LT_DebugNotify(const char *msg)
+{
+#if ENABLE_LT_BLE_DEBUG
+    ret_code_t err_code;
+    uint16_t length;
+
+    if ((msg == NULL) || (m_conn_handle == BLE_CONN_HANDLE_INVALID))
+    {
+        return;
+    }
+
+    length = (uint16_t)strlen(msg);
+    err_code = ble_nus_data_send(&m_nus, (uint8_t *)msg, &length, m_conn_handle);
+    UNUSED_VARIABLE(err_code);
+#else
+    UNUSED_PARAMETER(msg);
+#endif
+}
+
 /**@brief Function to transmite spi data over ble
  */
 static void gpio_cfg(void)
@@ -633,9 +651,6 @@ static void gpio_cfg(void)
         /* Disconnect input buffer and pin as input */
         nrf_gpio_cfg_default(pinNumber);
     }
-        
-    nrf_gpio_cfg_output(APP_SPIS_MISO_PIN);
-    nrf_gpio_pin_clear(APP_SPIS_MISO_PIN);    
 }
 
 
@@ -646,7 +661,7 @@ static void dis_init(void) {
     memset(&dis_init_obj, 0, sizeof(dis_init_obj));
 
     //ble_srv_ascii_to_utf8(&dis_init_obj.manufact_name_str, "Nordic Semiconductor");
-    ble_srv_ascii_to_utf8(&dis_init_obj.fw_rev_str, "20q16cst1sl63ci10rotUT"); // Set firmware version
+    ble_srv_ascii_to_utf8(&dis_init_obj.fw_rev_str, "20q16cst1sl63ci10rotLT"); // Set firmware version
     ble_srv_ascii_to_utf8(&dis_init_obj.hw_rev_str, "AIM21");
     ble_srv_ascii_to_utf8(&dis_init_obj.model_num_str, "nRF52832");
 
@@ -679,6 +694,7 @@ int main(void)
     gap_params_init();
     gatt_init();
     services_init();
+    SS_SetDebugNotifyCallback(LT_DebugNotify);
     advertising_init();
     conn_params_init();
     conn_evt_len_ext_set(true);
