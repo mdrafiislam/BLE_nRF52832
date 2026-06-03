@@ -12,12 +12,14 @@
 #include "sdk_config.h"
 #include "nrf_drv_spis.h"
 #include "nrf_gpio.h"
+#include "nrf_delay.h"
 #include "boards.h"
 #include "app_error.h"
 #include <string.h>
 #include <stdio.h>
 #include "ble_types.h"
 #include "app_scheduler.h"
+#include "app_timer.h"
 
 #include "nrf_log.h"
 #include "nrf_log_ctrl.h"
@@ -39,7 +41,9 @@
  *   delivered to the STM32 during the next safe SPI master transaction.
  */
 #define SPIS_INSTANCE               1                                       /**< Nordic SPIS peripheral instance index. */
-#define CS_NOTIFY_WAIT_MAX          10000000UL                              /**< Busy-wait loop count while waiting for STM32 to pull CS low after MISO-low notification. */
+#define CS_NOTIFY_WAIT_MAX          10000000UL                              /**< Busy-wait loop count while waiting (in the deferred path) for STM32 to release CS high before signaling. */
+#define MISO_NOTIFY_PULSE_US        10                                      /**< Width of the MISO-low "data ready" pulse driven before re-arming SPIS. */
+#define PHONE_TX_TIMEOUT_MS         2000                                    /**< Discard an armed phone packet and restore normal SPIS if the STM32 has not read it within this time. */
 
 /*******************************************************************************/
 static const nrf_drv_spis_t spis = NRF_DRV_SPIS_INSTANCE(SPIS_INSTANCE);    /**< Nordic driver object for the selected SPIS instance. */
@@ -57,6 +61,9 @@ static uint16_t      _connHandle = BLE_CONN_HANDLE_INVALID;                 /**<
 static bool          _spiSlaveInit = false;                                 /**< True after nrf_drv_spis_init() succeeds and false after SPIS uninit. */
 static bool          _phoneTxPending = false;                               /**< True when a phone/LT packet is waiting to be delivered to STM32. */
 static bool          _phoneTxArmed = false;                                 /**< True when the active SPIS TX buffer is the queued phone/LT packet. */
+static bool          _phoneTimerCreated = false;                            /**< True after the one-shot phone-delivery timeout timer has been created. */
+
+APP_TIMER_DEF(m_phone_tx_timeout_timer);                                    /**< One-shot timer bounding how long a phone packet may stay armed waiting for the STM32 to read it. */
 
 /*******************************************************************************/
 static void SSi_SpisEventHandler(nrf_drv_spis_event_t event);
@@ -128,6 +135,13 @@ static void SSi_ClearPhoneTx(bool notifyDiscard)
      * state without a discard notification.
      */
     bool had_phone_packet = (_phoneTxPending == true) || (_phoneTxArmed == true);
+
+    /* Cancel the delivery timeout; phone state is being torn down. Safe to call
+     * on a created-but-not-running timer. */
+    if (_phoneTimerCreated == true)
+    {
+        (void)app_timer_stop(m_phone_tx_timeout_timer);
+    }
 
     _phoneTxPending = false;
     _phoneTxArmed = false;
@@ -220,10 +234,29 @@ static ret_code_t SSi_WaitForCsHigh(void)
     return NRF_ERROR_TIMEOUT;
 }
 
+static void SSi_PhoneTxTimeoutHandler(void *p_context)
+{
+    UNUSED_PARAMETER(p_context);
+
+    /*
+     * The STM32 master never read the armed phone packet within the timeout: it
+     * missed the MISO notification pulse or was not servicing its EXTI. Discard
+     * the packet and restore normal SPIS polling so later BLE payloads are not
+     * rejected as NRF_ERROR_BUSY indefinitely. Runs in app_scheduler context
+     * (APP_TIMER_CONFIG_USE_SCHEDULER), the same context as the SPIS event
+     * handler, so re-initializing SPIS here is safe.
+     */
+    if ((_phoneTxArmed == true) || (_phoneTxPending == true))
+    {
+        SSi_LtDebugNotify("DBG:LT_CS_TIMEOUT");
+        SSi_ClearPhoneTx(true);
+        (void)SSi_RestoreNormalSpis();
+    }
+}
+
 static ret_code_t SSi_InterruptStm32AndArmPhoneTx(void)
 {
     ret_code_t err_code;
-    uint32_t checks;
 
     /*
      * To notify the STM32 that the nRF has a phone-originated packet ready,
@@ -236,55 +269,49 @@ static ret_code_t SSi_InterruptStm32AndArmPhoneTx(void)
     nrf_gpio_pin_clear(APP_SPIS_MISO_PIN);
     SSi_LtDebugNotify("DBG:LT_IRQ_LOW");
 
+    nrf_delay_us(MISO_NOTIFY_PULSE_US);
+
     /*
-     * The nRF is still an SPI slave. After signaling on MISO, it must wait
-     * for the STM32 master to respond by pulling CS low. Only the master can
-     * start the SPI transaction because only the master drives SCK.
+     * Re-enable the SPIS peripheral and arm the phone packet now, while CS is
+     * still high. The nRF52 SPIS latches its TX buffer on the CS falling edge,
+     * so arming here lets the STM32's next CS-low edge shift out the real data.
+     * The STM32 guarantees, via its own guard delay, that it will not assert CS
+     * until this arming has completed. This replaces the previous approach of
+     * waiting for CS low and then arming, which armed too late (after the
+     * latching edge) and shifted out the SPIS DEF character (0xFF).
      */
-    for (checks = 0; checks < CS_NOTIFY_WAIT_MAX; checks++)
+    err_code = SSi_InitSpis();
+    if (err_code != NRF_SUCCESS)
     {
-        if (SSi_IsCsLow() == true)
-        {
-            SSi_LtDebugNotify("DBG:LT_CS_LOW");
-            /*
-             * CS is now low, so the STM32 has started the transaction.
-             * Re-enable the SPIS peripheral on the pins before arming the
-             * phone packet as the active TX buffer.
-             */
-            err_code = SSi_InitSpis();
-            if (err_code != NRF_SUCCESS)
-            {
-                SSi_LtDebugNotify("DBG:LT_SPIS_INIT_FAIL");
-                SSi_ClearPhoneTx(true);
-                (void)SSi_RestoreNormalSpis();
-                return err_code;
-            }
-
-            _phoneTxArmed = true;
-            /*
-             * The 10-byte phone packet is now ready to shift out on MISO.
-             * Actual bytes leave the nRF only as the STM32 clocks the bus.
-             */
-            err_code = SSi_ArmTxBuffer(m_phone_tx_buf);
-            if (err_code != NRF_SUCCESS)
-            {
-                SSi_LtDebugNotify("DBG:LT_ARM_FAIL");
-                SSi_ClearPhoneTx(true);
-                (void)SSi_RestoreNormalSpis();
-            }
-
-            return err_code;
-        }
+        SSi_LtDebugNotify("DBG:LT_SPIS_INIT_FAIL");
+        SSi_ClearPhoneTx(true);
+        (void)SSi_RestoreNormalSpis();
+        return err_code;
     }
 
-    SSi_LtDebugNotify("DBG:LT_CS_TIMEOUT");
+    _phoneTxArmed = true;
     /*
-     * The STM32 did not respond to the MISO-low notification before the wait
-     * limit expired. Discard the pending phone packet and restore normal SPIS
-     * operation so regular SPI polling can continue.
+     * The 10-byte phone packet is now armed. Actual bytes leave the nRF only as
+     * the STM32 clocks the bus during the transaction it starts next.
      */
-    SSi_ClearPhoneTx(true);
-    return SSi_RestoreNormalSpis();
+    err_code = SSi_ArmTxBuffer(m_phone_tx_buf);
+    if (err_code != NRF_SUCCESS)
+    {
+        SSi_LtDebugNotify("DBG:LT_ARM_FAIL");
+        SSi_ClearPhoneTx(true);
+        (void)SSi_RestoreNormalSpis();
+        return err_code;
+    }
+
+    /*
+     * Bound the wait for the STM32 read without blocking. If the master missed
+     * the MISO pulse (or is not servicing its EXTI), this one-shot timer fires
+     * and SSi_PhoneTxTimeoutHandler() discards the packet and restores normal
+     * SPIS. It is cancelled in SSi_ClearPhoneTx() once the packet is delivered.
+     */
+    (void)app_timer_start(m_phone_tx_timeout_timer, APP_TIMER_TICKS(PHONE_TX_TIMEOUT_MS), NULL);
+
+    return err_code;
 }
 
 /**
@@ -632,6 +659,19 @@ ret_code_t SS_InitSpiSlave(SS_DATA_RECEIVE_CB dataRxCb)
      * completed normal transaction. main.c uses this to forward SPI data to BLE.
      */
     _SpiSlaveDataRxCb = dataRxCb;
+
+    /* Create the one-shot phone-delivery timeout timer once (app_timer_init()
+     * is done by main.c before this runs). Created before any SSi_ClearPhoneTx
+     * call so that stopping it is always safe. */
+    if (_phoneTimerCreated == false)
+    {
+        err_code = app_timer_create(&m_phone_tx_timeout_timer, APP_TIMER_MODE_SINGLE_SHOT, SSi_PhoneTxTimeoutHandler);
+        if (err_code != NRF_SUCCESS)
+        {
+            return err_code;
+        }
+        _phoneTimerCreated = true;
+    }
 
     /* Configure and enable the Nordic SPIS peripheral. */
     err_code = SSi_InitSpis();
