@@ -309,7 +309,14 @@ static ret_code_t SSi_InterruptStm32AndArmPhoneTx(void)
      * and SSi_PhoneTxTimeoutHandler() discards the packet and restores normal
      * SPIS. It is cancelled in SSi_ClearPhoneTx() once the packet is delivered.
      */
-    (void)app_timer_start(m_phone_tx_timeout_timer, APP_TIMER_TICKS(PHONE_TX_TIMEOUT_MS), NULL);
+    ret_code_t timer_err = app_timer_start(m_phone_tx_timeout_timer, APP_TIMER_TICKS(PHONE_TX_TIMEOUT_MS), NULL);
+    if (timer_err != NRF_SUCCESS)
+    {
+        SSi_LtDebugNotify("DBG:LT_TIMER_FAIL");
+        SSi_ClearPhoneTx(true);
+        (void)SSi_RestoreNormalSpis();
+        return timer_err;
+    }
 
     return err_code;
 }
