@@ -50,8 +50,10 @@ External Master (SPI)                    nRF52832 (SPI2BLE)              BLE Cen
 - Other NUS RX writes must be exactly 10 bytes. Payload contents are not validated or transformed.
 - NUS RX copies accepted payloads into the app scheduler before SPI work runs.
 - Only one phone payload may be pending or armed. A second payload returns `NRF_ERROR_BUSY`.
-- If CS is high, the nRF temporarily releases SPIS and pulls MISO low to notify STM32. The STM32 still starts transfers by pulling CS low and driving SCK.
-- CS-low and CS-high waits are bounded by `CS_NOTIFY_WAIT_MAX`. Timeout and discard paths restore normal polling.
+- If the SPI bus is idle (CS high and no transfer completed within `SPI_STREAM_IDLE_MS`), the nRF temporarily releases SPIS and pulses MISO low to notify STM32. The STM32 still starts transfers by pulling CS low and driving SCK.
+- If the STM32 is mid-transaction or actively polling, notification is deferred to right after the next XFER_DONE (CS just rose), never pulsed mid-stream. The pulse waits at least `MISO_NOTIFY_SETUP_DELAY_US` after CS rises so the STM32 can wrap up the completed transfer first.
+- Pending/armed phone deliveries are bounded by `PHONE_TX_TIMEOUT_MS`. A packet consumed by a normal streaming poll (detected via `rx_amount` > 10) is re-armed up to `PHONE_TX_MAX_RETRIES` times, and that poll's RX data is still forwarded to BLE. Timeout and discard paths restore normal polling.
+- A scheduler-queue overflow in the SPIS IRQ no longer resets the device; the event is dropped and buffers re-armed directly from the IRQ.
 - `ENABLE_LT_BLE_DEBUG` defaults to `0`. Existing `DBG:LT_*` messages are legacy names for optional best-effort bridge diagnostics.
 
 **SPI Pin mapping** (from `sdk_config.h`): SCK=2, MISO=3, MOSI=29, CS=4. Mode 0.

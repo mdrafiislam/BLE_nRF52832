@@ -114,7 +114,7 @@
 #ifdef SVCALL_AS_NORMAL_FUNCTION
 #define SCHED_QUEUE_SIZE                20                                          /**< Maximum number of events in the scheduler queue. More is needed in case of Serialization. */
 #else
-#define SCHED_QUEUE_SIZE                10                                          /**< Maximum number of events in the scheduler queue. */
+#define SCHED_QUEUE_SIZE                32                                          /**< Maximum number of events in the scheduler queue. Sized for BLE connection-setup bursts overlapping full-rate SPI streaming. */
 #endif
 
 

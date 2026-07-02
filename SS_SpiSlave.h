@@ -74,9 +74,11 @@ ret_code_t SS_SetTxbuffer(uint8_t *pData, uint16_t length);
 /**
  * @brief Queue an exact 10-byte phone bridge Tx buffer for spi slave delivery.
  *
- * If CS is high, SPIS is temporarily uninitialized and MISO is driven low
- * until CS goes low or CS_NOTIFY_WAIT_MAX expires. If CS is already low, the
- * phone bridge packet is queued for the next safe SPI transaction.
+ * If the SPI bus is idle, SPIS is temporarily uninitialized and a short
+ * MISO-low pulse notifies the STM32 before the packet is armed. If a
+ * transaction is in progress or the STM32 is actively polling, the packet is
+ * queued and delivered right after the next completed transaction. Delivery
+ * is bounded by a timeout; undelivered packets are discarded.
  *
  * @param pData, pointer to the 10-byte phone data to transfer
  * @param length, length of data to transfer
