@@ -90,7 +90,8 @@
 
 #define APP_BLE_CONN_CFG_TAG            1                                           /**< A tag identifying the SoftDevice BLE configuration. */
 
-#define DEVICE_NAME                     "AIM21"                                     /**< Name of device. Will be included in the advertising data. */
+#define DEVICE_NAME_PREFIX              "AIM21"                                     /**< Name prefix. The BLE address is appended to it to form the advertised name. */
+#define DEVICE_NAME_MAX_LEN             (sizeof(DEVICE_NAME_PREFIX) + 1 + 12)       /**< Prefix (sizeof includes the NUL) + '_' + 12 hex digits of the BLE address. */
 #define NUS_SERVICE_UUID_TYPE           BLE_UUID_TYPE_VENDOR_BEGIN                  /**< UUID type for the Nordic UART Service (vendor specific). */
 
 #define APP_BLE_OBSERVER_PRIO           3                                           /**< Application's BLE observer priority. You shouldn't need to modify this value. */
@@ -130,6 +131,7 @@ static ble_uuid_t m_adv_uuids[]          =                                      
     {BLE_UUID_NUS_SERVICE, NUS_SERVICE_UUID_TYPE},
     {BLE_UUID_DEVICE_INFORMATION_SERVICE, BLE_UUID_TYPE_BLE} // Add DIS UUID
 };
+static char       m_device_name[DEVICE_NAME_MAX_LEN];                               /**< Advertised device name, "AIM21_<BLE address>", built at startup. */
 static uint8_t _RxDataBuff[SPIS_DATA_RX_BUFFER_SIZE];
 
 static void DataTxOnBLE(uint8_t *pData, uint16_t length);
@@ -195,12 +197,30 @@ static void gap_params_init(void)
     uint32_t                err_code;
     ble_gap_conn_params_t   gap_conn_params;
     ble_gap_conn_sec_mode_t sec_mode;
+    ble_gap_addr_t          gap_addr;
 
     BLE_GAP_CONN_SEC_MODE_SET_OPEN(&sec_mode);
 
+    // Append the BLE address to the name so units are individually identifiable in a scan.
+    // addr[] is little-endian, so print addr[5] first to match the usual MSB-first notation.
+    err_code = sd_ble_gap_addr_get(&gap_addr);
+    if (err_code == NRF_SUCCESS)
+    {
+        (void) snprintf(m_device_name, sizeof(m_device_name), "%s_%02X%02X%02X%02X%02X%02X",
+                        DEVICE_NAME_PREFIX,
+                        gap_addr.addr[5], gap_addr.addr[4], gap_addr.addr[3],
+                        gap_addr.addr[2], gap_addr.addr[1], gap_addr.addr[0]);
+    }
+    else
+    {
+        // Cosmetic feature: keep advertising under the bare prefix rather than failing to start.
+        strcpy(m_device_name, DEVICE_NAME_PREFIX);
+    }
+    NRF_LOG_INFO("Device name: %s", NRF_LOG_PUSH(m_device_name));
+
     err_code = sd_ble_gap_device_name_set(&sec_mode,
-                                          (const uint8_t *) DEVICE_NAME,
-                                          strlen(DEVICE_NAME));
+                                          (const uint8_t *) m_device_name,
+                                          strlen(m_device_name));
     APP_ERROR_CHECK(err_code);
 
     memset(&gap_conn_params, 0, sizeof(gap_conn_params));
