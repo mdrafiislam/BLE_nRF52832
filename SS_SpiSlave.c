@@ -60,7 +60,7 @@ static const uint8_t m_tx_length = SPIS_DATA_TX_BUFFER_SIZE;                /**<
 static SS_DATA_RECEIVE_CB _SpiSlaveDataRxCb = NULL;                         /**< Application callback used to forward normal STM32 SPI RX data to BLE. */
 static SS_DEBUG_NOTIFY_CB _DebugNotifyCb = NULL;                            /**< Optional BLE debug notification callback for short LT status strings. */
 static uint16_t      _connHandle = BLE_CONN_HANDLE_INVALID;                 /**< Current BLE connection handle, used only to encode connection status in normal SPI TX buffer. */
-static bool          _spiSlaveInit = false;                                 /**< True after nrf_drv_spis_init() succeeds and false after SPIS uninit. */
+static volatile bool          _spiSlaveInit = false;                                 /**< True after nrf_drv_spis_init() succeeds and false after SPIS uninit. */
 static bool          _phoneTxPending = false;                               /**< True when a phone/LT packet is waiting to be delivered to STM32. */
 static bool          _phoneTxArmed = false;                                 /**< True when the active SPIS TX buffer is the queued phone/LT packet. */
 static bool          _phoneTimerCreated = false;                            /**< True after the one-shot phone-delivery timeout timer has been created. */
@@ -406,6 +406,18 @@ static void SSi_SpisScheduledEvent(void *pData, uint16_t length)
     UNUSED_PARAMETER(length);
 
     /*
+     * The SPI module may have been torn down (BLE disconnect ->
+     * SS_UninitSpiSlave) after this event was queued but before the scheduler
+     * drained it. Every exit path below re-arms SPIS, which would touch an
+     * uninitialized driver instance. Drop the stale event instead.
+     */
+    if (_spiSlaveInit != true)
+    {
+        NRF_LOG_WARNING("SPIS event dropped: module uninitialized");
+        return;
+    }
+
+    /*
      * NRF_DRV_SPIS_XFER_DONE means the STM32 master completed a transaction.
      * At this point event.tx_amount tells how many bytes were clocked out from
      * the nRF TX buffer, and m_rx_buf contains bytes clocked in from MOSI.
@@ -570,7 +582,7 @@ static void SSi_SpisEventHandler(nrf_drv_spis_event_t event)
 {
     ret_code_t err_code;
 
-    if (event.evt_type == NRF_DRV_SPIS_XFER_DONE)
+    if ((event.evt_type == NRF_DRV_SPIS_XFER_DONE) && (_spiSlaveInit == true))
     {
         /*
          * Timestamp the completed transfer here (not in the deferred handler)

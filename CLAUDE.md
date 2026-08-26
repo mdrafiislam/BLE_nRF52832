@@ -23,8 +23,8 @@ This is an nRF52832 firmware project implementing an SPI-to-BLE bridge using the
 
 ## Custom Source Files (in project root)
 
-- **`main.c`** (~720 lines) — Application entry point. Initializes all subsystems, runs the BLE event handler (`ble_evt_handler`), handles NUS data callbacks (`nus_data_handler`), manages DIS, and bridges SPI <-> BLE data.
-- **`SS_SpiSlave.c` / `SS_SpiSlave.h`** — SPI slave wrapper using SPIS instance 1. RX buffer: 244 bytes, TX buffer: 10 bytes (normal traffic reserves last byte for BLE connection status; BLE-to-SPI payloads use all 10 bytes). Uses `app_scheduler` to defer SPI events to the main loop.
+- **`main.c`** (~740 lines) — Application entry point. Initializes all subsystems, runs the BLE event handler (`ble_evt_handler`), handles NUS data callbacks (`nus_data_handler`), manages DIS, and bridges SPI <-> BLE data.
+- **`SS_SpiSlave.c` / `SS_SpiSlave.h`** — SPI slave wrapper using SPIS instance 1. RX buffer: 244 bytes, TX buffer: 10 bytes (normal traffic reserves last byte for BLE connection status; BLE-to-SPI payloads use all 10 bytes). Uses `app_scheduler` to defer SPI events to the main loop. Public API: `SS_InitSpiSlave`, `SS_UninitSpiSlave`, `SS_SetConnectionHandle`, `SS_SetTxbuffer`, `SS_SetPhoneTxbuffer`, `SS_SetTimeUpdateTxbuffer` (compat wrapper for `SS_SetPhoneTxbuffer`), `SS_SetDebugNotifyCallback`.
 - **`SS_BleCmd.c` / `SS_BleCmd.h`** — BLE command processor. Recognizes "STARTDFU" (triggers bootloader via GPREGRET) and "STARTRST" (system reset after 2s delay).
 
 ## Architecture
@@ -56,11 +56,13 @@ External Master (SPI)                    nRF52832 (SPI2BLE)              BLE Cen
 - A scheduler-queue overflow in the SPIS IRQ no longer resets the device; the event is dropped and buffers re-armed directly from the IRQ.
 - `ENABLE_LT_BLE_DEBUG` defaults to `0`. Existing `DBG:LT_*` messages are legacy names for optional best-effort bridge diagnostics.
 
+**Device name**: Dynamic — prefix `"AIM21"` + `"_"` + 6-byte BLE MAC in hex (MSB first), e.g. `"AIM21_AABBCCDDEEFF"`. Built at startup in `gap_params_init()` via `sd_ble_gap_addr_get()`. Falls back to bare `"AIM21"` if the SoftDevice call fails.
+
 **SPI Pin mapping** (from `sdk_config.h`): SCK=2, MISO=3, MOSI=29, CS=4. Mode 0.
 
 **BLE Services**:
 - **NUS** (UUID `6E400000-B5A3-F393-E0A9-E50E24DCCA9E`): Primary data channel
-- **DIS** (UUID `0x180A`): Model="nRF52832", HW rev="AIM21", FW rev="20q16cst1sl63ci10rotLT"
+- **DIS** (UUID `0x180A`): Model="nRF52832", HW rev="AIM21", FW rev set in `dis_init()` — currently `"fable_review"` (matches the active branch name; update this string when cutting a release)
 
 ## Build Commands
 
@@ -104,10 +106,12 @@ Run `Merge_and_zip\ble_spis_merge_zip_Generator.bat` to execute the full pipelin
 | `NRF_SDH_BLE_TOTAL_LINK_COUNT` | 1 | Single connection |
 | `APP_TIMER_V2` | Yes | RTC1-based timer |
 
+`SCHED_QUEUE_SIZE` is defined in `main.c` as 32 (or 20 when `SVCALL_AS_NORMAL_FUNCTION` is set), sized to handle BLE connection-setup bursts overlapping full-rate SPI streaming. `SCHED_MAX_EVENT_DATA_SIZE` covers the largest of: `APP_TIMER_SCHED_EVENT_DATA_SIZE`, `sizeof(nrf_drv_spis_event_t)`, and `SPIS_DATA_TX_BUFFER_SIZE`.
+
 ## Important Notes
 
 - The SDK `ble_nus.c` UUID is expected to be set to `#define NUS_BASE_UUID {{0x31, 0xAC, 0x24, 0x85, 0x9B, 0x50, 0x22, 0xB5, 0xD3, 0x48, 0x2D, 0xD9, 0xA9, 0xD2, 0xA1, 0x4A}}` on line 64; this is already true in this checkout, but must be checked when using a fresh SDK.
 - DCDC is enabled at runtime via `sd_power_dcdc_mode_set(NRF_POWER_DCDC_ENABLE)` (disabled by default in `sdk_config.h`)
-- Advertising interval: 3200 units (2000ms). Connection interval: 60-70ms. Slave latency: 1.
+- Advertising interval: 3200 units (2000ms). Connection interval: 60-80ms (`MIN_CONN_INTERVAL`=60ms, `MAX_CONN_INTERVAL`=80ms). Slave latency: 1. Supervision timeout: 16s.
 - No test infrastructure exists — this is embedded firmware with no unit test framework.
 - Build artifacts in `pca10040/s132/ses/Output/` are gitignored.

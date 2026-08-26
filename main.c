@@ -101,7 +101,7 @@
 #define APP_ADV_DURATION                0                                           /**< The advertising duration (180 seconds) in units of 10 milliseconds. */
 
 #define MIN_CONN_INTERVAL               MSEC_TO_UNITS(60, UNIT_1_25_MS)             /**< Minimum acceptable connection interval (20 ms), Connection interval uses 1.25 ms units. */
-#define MAX_CONN_INTERVAL               MSEC_TO_UNITS(70, UNIT_1_25_MS)             /**< Maximum acceptable connection interval (75 ms), Connection interval uses 1.25 ms units. */
+#define MAX_CONN_INTERVAL               MSEC_TO_UNITS(80, UNIT_1_25_MS)             /**< Maximum acceptable connection interval (75 ms), Connection interval uses 1.25 ms units. */
 #define SLAVE_LATENCY                   1                                           /**< Slave latency. */
 #define CONN_SUP_TIMEOUT                MSEC_TO_UNITS(16000, UNIT_10_MS)             /**< Connection supervisory timeout (4 seconds), Supervision Timeout uses 10 ms units. */
 #define FIRST_CONN_PARAMS_UPDATE_DELAY  APP_TIMER_TICKS(5000)                       /**< Time from initiating event (connect or start of notification) to first time sd_ble_gap_conn_param_update is called (5 seconds). */
@@ -440,7 +440,14 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
                 .tx_phys = BLE_GAP_PHY_AUTO,
             };
             err_code = sd_ble_gap_phy_update(p_ble_evt->evt.gap_evt.conn_handle, &phys);
-            APP_ERROR_CHECK(err_code);
+            if (err_code != NRF_SUCCESS)
+            {
+                /* NRF_ERROR_BUSY if a link procedure is already running, or
+                 * BLE_ERROR_INVALID_CONN_HANDLE if the peer went away between
+                 * the request and this call. Neither is fatal: the link keeps
+                 * working on the current PHY. */
+                NRF_LOG_WARNING("PHY update rejected: 0x%08X", (unsigned int)err_code);
+            }
         } break;
 
         case BLE_GAP_EVT_SEC_PARAMS_REQUEST:
@@ -459,14 +466,22 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
             // Disconnect on GATT Client timeout event.
             err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gattc_evt.conn_handle,
                                              BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
-            APP_ERROR_CHECK(err_code);
+            if (err_code != NRF_SUCCESS)
+            {
+                /* NRF_ERROR_INVALID_STATE if a disconnect is already in flight.
+                 * The link is going down either way. */
+                NRF_LOG_WARNING("GATTC timeout disconnect failed: 0x%08X", (unsigned int)err_code);
+            }
             break;
 
         case BLE_GATTS_EVT_TIMEOUT:
             // Disconnect on GATT Server timeout event.
             err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gatts_evt.conn_handle,
                                              BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
-            APP_ERROR_CHECK(err_code);
+            if (err_code != NRF_SUCCESS)
+            {
+                NRF_LOG_WARNING("GATTS timeout disconnect failed: 0x%08X", (unsigned int)err_code);
+            }
             break;
 
         default:
@@ -536,6 +551,20 @@ void gatt_init(void)
     APP_ERROR_CHECK(err_code);
 }
 
+/**@brief Function for handling errors reported by the advertising module.
+ *
+ * @details Called by ble_advertising when it fails to (re)start advertising on
+ *          its own, most importantly on the automatic restart after
+ *          BLE_GAP_EVT_DISCONNECTED. Without this handler the module discards
+ *          the failure silently and the device simply stops advertising.
+ *
+ * @param[in] nrf_error  Error returned by ble_advertising_start().
+ */
+static void on_adv_error(uint32_t nrf_error)
+{
+    NRF_LOG_ERROR("Advertising restart failed: 0x%08X", (unsigned int)nrf_error);
+}
+
 /**@brief Function for initializing the Advertising functionality.
  */
 static void advertising_init(void)
@@ -555,7 +584,8 @@ static void advertising_init(void)
     init.config.ble_adv_fast_enabled  = true;
     init.config.ble_adv_fast_interval = APP_ADV_INTERVAL;
     init.config.ble_adv_fast_timeout  = APP_ADV_DURATION;
-    init.evt_handler = on_adv_evt;
+    init.evt_handler   = on_adv_evt;
+    init.error_handler = on_adv_error;
 
     err_code = ble_advertising_init(&m_advertising, &init);
     APP_ERROR_CHECK(err_code);
@@ -681,7 +711,7 @@ static void dis_init(void) {
     memset(&dis_init_obj, 0, sizeof(dis_init_obj));
 
     //ble_srv_ascii_to_utf8(&dis_init_obj.manufact_name_str, "Nordic Semiconductor");
-    ble_srv_ascii_to_utf8(&dis_init_obj.fw_rev_str, "20q16cst1sl63ci10rotLT"); // Set firmware version
+    ble_srv_ascii_to_utf8(&dis_init_obj.fw_rev_str, "error_logging"); // Set firmware version
     ble_srv_ascii_to_utf8(&dis_init_obj.hw_rev_str, "AIM21");
     ble_srv_ascii_to_utf8(&dis_init_obj.model_num_str, "nRF52832");
 
