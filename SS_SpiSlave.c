@@ -605,7 +605,7 @@ static void SSi_SpisEventHandler(nrf_drv_spis_event_t event)
          * data. Phone packet state, if any, is bounded by the delivery
          * timeout timer.
          */
-        if (event.evt_type == NRF_DRV_SPIS_XFER_DONE)
+        if ((event.evt_type == NRF_DRV_SPIS_XFER_DONE) && (_spiSlaveInit == true))
         {
             (void)nrf_drv_spis_buffers_set(&spis, m_tx_buf, sizeof(m_tx_buf), m_rx_buf, sizeof(m_rx_buf));
         }
