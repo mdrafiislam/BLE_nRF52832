@@ -62,7 +62,7 @@ External Master (SPI)                    nRF52832 (SPI2BLE)              BLE Cen
 
 **BLE Services**:
 - **NUS** (UUID `6E400000-B5A3-F393-E0A9-E50E24DCCA9E`): Primary data channel
-- **DIS** (UUID `0x180A`): Model="nRF52832", HW rev="AIM21", FW rev set in `dis_init()` — currently `"fable_review"` (matches the active branch name; update this string when cutting a release)
+- **DIS** (UUID `0x180A`): Model="nRF52832", HW rev="AIM21", FW rev set in `dis_init()` — currently "error_logging" (matches the active branch name; update this string when cutting a release)
 
 ## Build Commands
 
