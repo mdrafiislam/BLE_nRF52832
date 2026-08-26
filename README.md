@@ -29,7 +29,7 @@ BLE Config:
 TX buffer = 244 bytes  
 RX buffer = 10 bytes  
 Advertising interval = 3200 (2000 ms)  
-Connection interval = 63.5 ms  
+Connection interval = 60-80 ms  
 Advertising duration = unlimited  
 hvn\_tx\_queue\_size = 20  
 DCDC regulator = on  
