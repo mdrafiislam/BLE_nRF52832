@@ -41,9 +41,11 @@
  *   delivered to the STM32 during the next safe SPI master transaction.
  */
 #define SPIS_INSTANCE               1                                       /**< Nordic SPIS peripheral instance index. */
-#define CS_NOTIFY_WAIT_MAX          10000000UL                              /**< Busy-wait loop count while waiting (in the deferred path) for STM32 to release CS high before signaling. */
 #define MISO_NOTIFY_PULSE_US        10                                      /**< Width of the MISO-low "data ready" pulse driven before re-arming SPIS. */
-#define PHONE_TX_TIMEOUT_MS         2000                                    /**< Discard an armed phone packet and restore normal SPIS if the STM32 has not read it within this time. */
+#define MISO_NOTIFY_SETUP_DELAY_US  100                                     /**< Minimum time after CS rises before MISO is pulsed, so the STM32 can wrap up the completed transfer (DMA/ISR housekeeping, EXTI re-arm) before being signaled. */
+#define PHONE_TX_TIMEOUT_MS         2000                                    /**< Discard a pending or armed phone packet and restore normal SPIS if the STM32 has not read it within this time. */
+#define PHONE_TX_MAX_RETRIES        3                                       /**< How many times a phone packet consumed by a normal poll is re-armed before being discarded. */
+#define SPI_STREAM_IDLE_MS          100                                     /**< If a transfer completed less than this long ago, the STM32 is actively polling and MISO notification is deferred to the next XFER_DONE. */
 
 /*******************************************************************************/
 static const nrf_drv_spis_t spis = NRF_DRV_SPIS_INSTANCE(SPIS_INSTANCE);    /**< Nordic driver object for the selected SPIS instance. */
@@ -58,10 +60,13 @@ static const uint8_t m_tx_length = SPIS_DATA_TX_BUFFER_SIZE;                /**<
 static SS_DATA_RECEIVE_CB _SpiSlaveDataRxCb = NULL;                         /**< Application callback used to forward normal STM32 SPI RX data to BLE. */
 static SS_DEBUG_NOTIFY_CB _DebugNotifyCb = NULL;                            /**< Optional BLE debug notification callback for short LT status strings. */
 static uint16_t      _connHandle = BLE_CONN_HANDLE_INVALID;                 /**< Current BLE connection handle, used only to encode connection status in normal SPI TX buffer. */
-static bool          _spiSlaveInit = false;                                 /**< True after nrf_drv_spis_init() succeeds and false after SPIS uninit. */
+static volatile bool          _spiSlaveInit = false;                                 /**< True after nrf_drv_spis_init() succeeds and false after SPIS uninit. */
 static bool          _phoneTxPending = false;                               /**< True when a phone/LT packet is waiting to be delivered to STM32. */
 static bool          _phoneTxArmed = false;                                 /**< True when the active SPIS TX buffer is the queued phone/LT packet. */
 static bool          _phoneTimerCreated = false;                            /**< True after the one-shot phone-delivery timeout timer has been created. */
+static uint8_t       _phoneTxRetries = 0;                                   /**< Re-arm attempts for the current phone packet after it was consumed by a normal poll. */
+static volatile bool     _spiXferSeen = false;                              /**< True once at least one SPIS transfer has completed; qualifies _lastXferDoneTicks. */
+static volatile uint32_t _lastXferDoneTicks = 0;                            /**< app_timer tick count captured at the most recent SPIS XFER_DONE interrupt. */
 
 APP_TIMER_DEF(m_phone_tx_timeout_timer);                                    /**< One-shot timer bounding how long a phone packet may stay armed waiting for the STM32 to read it. */
 
@@ -145,6 +150,7 @@ static void SSi_ClearPhoneTx(bool notifyDiscard)
 
     _phoneTxPending = false;
     _phoneTxArmed = false;
+    _phoneTxRetries = 0;
     memset(m_phone_tx_buf, 0, sizeof(m_phone_tx_buf));
 
     if ((notifyDiscard == true) && (had_phone_packet == true))
@@ -214,24 +220,35 @@ static ret_code_t SSi_RestoreNormalSpis(void)
     return SSi_ArmTxBuffer(m_normal_tx_buf);
 }
 
-static ret_code_t SSi_WaitForCsHigh(void)
+static ret_code_t SSi_StartPhoneTxTimeout(void)
 {
-    uint32_t checks;
+    /*
+     * (Re)start the one-shot timer that bounds how long a phone packet may
+     * stay pending or armed. Stop first so restarting an already running
+     * timer is always accepted.
+     */
+    (void)app_timer_stop(m_phone_tx_timeout_timer);
+    return app_timer_start(m_phone_tx_timeout_timer, APP_TIMER_TICKS(PHONE_TX_TIMEOUT_MS), NULL);
+}
+
+static bool SSi_IsSpiStreamingActive(void)
+{
+    uint32_t elapsed_ticks;
 
     /*
-     * If a phone packet arrives while CS is low, a master transaction is
-     * already in progress. Wait for the STM32 to release CS before changing
-     * SPIS state or using MISO as a notification GPIO.
+     * The STM32 is considered to be actively polling when a transfer completed
+     * within the last SPI_STREAM_IDLE_MS. While it is polling, the MISO
+     * notification must be issued right after an XFER_DONE (the start of the
+     * master's idle gap), never at an arbitrary time that can race the
+     * master's next CS assertion.
      */
-    for (checks = 0; checks < CS_NOTIFY_WAIT_MAX; checks++)
+    if (_spiXferSeen != true)
     {
-        if (SSi_IsCsLow() != true)
-        {
-            return NRF_SUCCESS;
-        }
+        return false;
     }
 
-    return NRF_ERROR_TIMEOUT;
+    elapsed_ticks = app_timer_cnt_diff_compute(app_timer_cnt_get(), _lastXferDoneTicks);
+    return (elapsed_ticks < APP_TIMER_TICKS(SPI_STREAM_IDLE_MS));
 }
 
 static void SSi_PhoneTxTimeoutHandler(void *p_context)
@@ -248,9 +265,27 @@ static void SSi_PhoneTxTimeoutHandler(void *p_context)
      */
     if ((_phoneTxArmed == true) || (_phoneTxPending == true))
     {
+        bool phone_was_armed = _phoneTxArmed;
+
         SSi_LtDebugNotify("DBG:LT_CS_TIMEOUT");
         SSi_ClearPhoneTx(true);
-        (void)SSi_RestoreNormalSpis();
+
+        /*
+         * Only rebuild SPIS when the phone packet was armed as the active TX
+         * buffer. A packet that was merely pending never replaced the normal
+         * buffer, and an unnecessary uninit/init here could swallow a
+         * transaction the master is clocking right now.
+         */
+        if (phone_was_armed == true)
+        {
+            (void)SSi_RestoreNormalSpis();
+        }
+
+        /*
+         * The master stopped polling (e.g., device on charger). Treat the bus
+         * as idle again so the next phone packet is signaled immediately.
+         */
+        _spiXferSeen = false;
     }
 }
 
@@ -264,6 +299,37 @@ static ret_code_t SSi_InterruptStm32AndArmPhoneTx(void)
      * Pulling MISO low is the out-of-band "data ready" signal to the master.
      */
     SSi_UninitSpisOnly();
+
+    /*
+     * The caller checked CS before calling, but the master may have started a
+     * normal streaming transaction in the meantime. If CS fell, do not pulse
+     * MISO into a transaction the STM32 is already clocking: put SPIS back,
+     * keep the packet pending and let the XFER_DONE path (or the timeout)
+     * deliver or discard it.
+     */
+    if (SSi_IsCsLow() == true)
+    {
+        err_code = SSi_InitSpis();
+        if (err_code != NRF_SUCCESS)
+        {
+            SSi_LtDebugNotify("DBG:LT_SPIS_INIT_FAIL");
+            SSi_ClearPhoneTx(true);
+            (void)SSi_RestoreNormalSpis();
+            return err_code;
+        }
+
+        (void)SSi_ArmTxBuffer(m_normal_tx_buf);
+
+        err_code = SSi_StartPhoneTxTimeout();
+        if (err_code != NRF_SUCCESS)
+        {
+            SSi_ClearPhoneTx(true);
+            return err_code;
+        }
+
+        NRF_LOG_INFO("Phone SPI bridge notify deferred: CS fell before MISO pulse");
+        return NRF_SUCCESS;
+    }
 
     nrf_gpio_cfg_output(APP_SPIS_MISO_PIN);
     nrf_gpio_pin_clear(APP_SPIS_MISO_PIN);
@@ -309,7 +375,7 @@ static ret_code_t SSi_InterruptStm32AndArmPhoneTx(void)
      * and SSi_PhoneTxTimeoutHandler() discards the packet and restores normal
      * SPIS. It is cancelled in SSi_ClearPhoneTx() once the packet is delivered.
      */
-    ret_code_t timer_err = app_timer_start(m_phone_tx_timeout_timer, APP_TIMER_TICKS(PHONE_TX_TIMEOUT_MS), NULL);
+    ret_code_t timer_err = SSi_StartPhoneTxTimeout();
     if (timer_err != NRF_SUCCESS)
     {
         SSi_LtDebugNotify("DBG:LT_TIMER_FAIL");
@@ -340,6 +406,18 @@ static void SSi_SpisScheduledEvent(void *pData, uint16_t length)
     UNUSED_PARAMETER(length);
 
     /*
+     * The SPI module may have been torn down (BLE disconnect ->
+     * SS_UninitSpiSlave) after this event was queued but before the scheduler
+     * drained it. Every exit path below re-arms SPIS, which would touch an
+     * uninitialized driver instance. Drop the stale event instead.
+     */
+    if (_spiSlaveInit != true)
+    {
+        NRF_LOG_WARNING("SPIS event dropped: module uninitialized");
+        return;
+    }
+
+    /*
      * NRF_DRV_SPIS_XFER_DONE means the STM32 master completed a transaction.
      * At this point event.tx_amount tells how many bytes were clocked out from
      * the nRF TX buffer, and m_rx_buf contains bytes clocked in from MOSI.
@@ -353,15 +431,28 @@ static void SSi_SpisScheduledEvent(void *pData, uint16_t length)
          */
         bool phone_tx_was_armed = _phoneTxArmed;
 
+        /*
+         * The STM32 reads a phone packet with a short, dedicated transaction
+         * (at most SPIS_DATA_TX_BUFFER_SIZE bytes) issued in response to the
+         * MISO pulse. If the master clocked more RX bytes than that while the
+         * phone packet was armed, this was a regular streaming poll that
+         * consumed the phone bytes in place of the normal status frame: the
+         * packet was NOT handled by the STM32 phone-read path.
+         */
+        bool phone_consumed_by_normal_poll = (phone_tx_was_armed == true) &&
+                                             (event.rx_amount > SPIS_DATA_TX_BUFFER_SIZE);
+
         NRF_LOG_INFO("SS_Xfer_done");
 
         /*
          * Normal SPI transactions carry STM32-to-phone data, so forward the
          * received SPI RX buffer to BLE. Phone/LT transactions are different:
          * they are nRF-to-STM32 deliveries, so do not echo their RX buffer to
-         * BLE as normal STM32 payload.
+         * BLE as normal STM32 payload. A normal poll that swallowed the phone
+         * packet still carried real STM32 data, so forward that as usual.
          */
-        if ((phone_tx_was_armed != true) && (_SpiSlaveDataRxCb != NULL))
+        if (((phone_tx_was_armed != true) || (phone_consumed_by_normal_poll == true)) &&
+            (_SpiSlaveDataRxCb != NULL))
         {
             _SpiSlaveDataRxCb(m_rx_buf, sizeof(m_rx_buf));
         }
@@ -370,34 +461,60 @@ static void SSi_SpisScheduledEvent(void *pData, uint16_t length)
 
         if (phone_tx_was_armed == true)
         {
-            /*
-             * event.tx_amount is the number of bytes the STM32 actually
-             * clocked out of the nRF TX buffer. A complete LT delivery needs
-             * all 10 bytes; fewer bytes means the master stopped clocking
-             * before the whole packet was transferred.
-             */
-            if (event.tx_amount >= SPIS_DATA_TX_BUFFER_SIZE)
+            if (phone_consumed_by_normal_poll == true)
             {
-                NRF_LOG_INFO("Phone SPI bridge transfer complete");
-                SSi_LtDebugNotify("DBG:LT_SENT_10");
+                /*
+                 * The armed packet went out inside a normal streaming poll, so
+                 * the STM32 never processed it as phone data (and its status
+                 * parser saw phone bytes instead of a status frame). Re-arm
+                 * and pulse again a bounded number of times so the packet is
+                 * still delivered through a dedicated read.
+                 */
+                if (_phoneTxRetries < PHONE_TX_MAX_RETRIES)
+                {
+                    _phoneTxRetries++;
+                    _phoneTxArmed = false;
+                    _phoneTxPending = true;
+                    NRF_LOG_WARNING("Phone SPI bridge packet consumed by normal poll, retry %u", (unsigned int)_phoneTxRetries);
+                    SSi_LtDebugNotify("DBG:LT_RETRY");
+                }
+                else
+                {
+                    NRF_LOG_WARNING("Phone SPI bridge packet consumed by normal polls, discarding");
+                    SSi_ClearPhoneTx(true);
+                }
             }
             else
             {
-                NRF_LOG_WARNING("Phone SPI bridge transfer incomplete: %u bytes", (unsigned int)event.tx_amount);
+                /*
+                 * event.tx_amount is the number of bytes the STM32 actually
+                 * clocked out of the nRF TX buffer. A complete LT delivery needs
+                 * all 10 bytes; fewer bytes means the master stopped clocking
+                 * before the whole packet was transferred.
+                 */
+                if (event.tx_amount >= SPIS_DATA_TX_BUFFER_SIZE)
+                {
+                    NRF_LOG_INFO("Phone SPI bridge transfer complete");
+                    SSi_LtDebugNotify("DBG:LT_SENT_10");
+                }
+                else
+                {
+                    NRF_LOG_WARNING("Phone SPI bridge transfer incomplete: %u bytes", (unsigned int)event.tx_amount);
 
 #if ENABLE_LT_BLE_DEBUG
-                /*
-                 * Keep the debug string short enough for BLE notification use.
-                 * The largest expected rendered form is DBG:LT_INCOMPLETE_255.
-                 */
-                char incomplete_msg[sizeof("DBG:LT_INCOMPLETE_255")];
+                    /*
+                     * Keep the debug string short enough for BLE notification use.
+                     * The largest expected rendered form is DBG:LT_INCOMPLETE_255.
+                     */
+                    char incomplete_msg[sizeof("DBG:LT_INCOMPLETE_255")];
 
-                snprintf(incomplete_msg, sizeof(incomplete_msg), "DBG:LT_INCOMPLETE_%u", (unsigned int)event.tx_amount);
-                SSi_LtDebugNotify(incomplete_msg);
+                    snprintf(incomplete_msg, sizeof(incomplete_msg), "DBG:LT_INCOMPLETE_%u", (unsigned int)event.tx_amount);
+                    SSi_LtDebugNotify(incomplete_msg);
 #endif
-            }
+                }
 
-            SSi_ClearPhoneTx(false);
+                SSi_ClearPhoneTx(false);
+            }
         }
 
         /*
@@ -409,22 +526,31 @@ static void SSi_SpisScheduledEvent(void *pData, uint16_t length)
         if (_phoneTxPending == true)
         {
             /*
-             * A phone packet may arrive while CS is already low, meaning the
-             * STM32 is in the middle of an existing SPI transaction. In that
-             * case SS_SetPhoneTxbuffer() only queues the packet. After the
-             * current transaction completes, wait for CS to return high, then
-             * signal the STM32 and arm the queued phone packet for the next
-             * safe master transaction.
+             * A queued phone packet is delivered from here because END fires
+             * on the CS rising edge: this is the start of the master's idle
+             * gap, the safest moment to pulse MISO and arm the packet. If the
+             * master has already started another transaction, do not block
+             * the scheduler waiting for it; keep the packet pending and retry
+             * at the next XFER_DONE. The delivery timeout bounds the total
+             * wait, so a stopped master cannot leave the packet stuck.
              */
-            err_code = SSi_WaitForCsHigh();
-            if (err_code != NRF_SUCCESS)
+            if (SSi_IsCsLow() == true)
             {
-                NRF_LOG_WARNING("Phone SPI bridge discarded: CS stayed low");
-                SSi_LtDebugNotify("DBG:LT_CS_HIGH_TIMEOUT");
-                SSi_ClearPhoneTx(true);
+                NRF_LOG_INFO("Phone SPI bridge notify deferred: CS already low");
                 (void)SSi_ArmTxBuffer(m_normal_tx_buf);
                 return;
             }
+
+            /*
+             * CS just rose, but the STM32 still needs time to finish its
+             * transfer-complete handling before it can accept the MISO
+             * notification. Scheduler latency between the END interrupt and
+             * this point is variable and can be near zero, so enforce the
+             * setup time explicitly. A CS re-check follows inside
+             * SSi_InterruptStm32AndArmPhoneTx() in case the master started a
+             * new transaction during this delay.
+             */
+            nrf_delay_us(MISO_NOTIFY_SETUP_DELAY_US);
 
             err_code = SSi_InterruptStm32AndArmPhoneTx();
             if (err_code != NRF_SUCCESS)
@@ -454,9 +580,38 @@ static void SSi_SpisScheduledEvent(void *pData, uint16_t length)
  */
 static void SSi_SpisEventHandler(nrf_drv_spis_event_t event)
 {
-    ret_code_t err_code = app_sched_event_put(&event, sizeof(nrf_drv_spis_event_t), SSi_SpisScheduledEvent);
+    ret_code_t err_code;
 
-    APP_ERROR_CHECK(err_code);
+    if ((event.evt_type == NRF_DRV_SPIS_XFER_DONE) && (_spiSlaveInit == true))
+    {
+        /*
+         * Timestamp the completed transfer here (not in the deferred handler)
+         * so SS_SetPhoneTxbuffer() sees master polling activity without
+         * scheduler latency.
+         */
+        _lastXferDoneTicks = app_timer_cnt_get();
+        _spiXferSeen = true;
+    }
+
+    err_code = app_sched_event_put(&event, sizeof(nrf_drv_spis_event_t), SSi_SpisScheduledEvent);
+    if (err_code != NRF_SUCCESS)
+    {
+        /*
+         * Scheduler queue full (e.g., BLE connection-setup burst while the
+         * STM32 streams at full rate). Resetting the device here would drop
+         * the BLE link, so degrade gracefully instead: re-arm the current
+         * buffers directly (the SDK SPIS examples call buffers_set from this
+         * context) so the SPI link stays alive, and drop this frame's RX
+         * data. Phone packet state, if any, is bounded by the delivery
+         * timeout timer.
+         */
+        if ((event.evt_type == NRF_DRV_SPIS_XFER_DONE) && (_spiSlaveInit == true))
+        {
+            (void)nrf_drv_spis_buffers_set(&spis, m_tx_buf, sizeof(m_tx_buf), m_rx_buf, sizeof(m_rx_buf));
+        }
+
+        NRF_LOG_WARNING("SPIS event dropped, scheduler queue full: 0x%08X", (unsigned int)err_code);
+    }
 }
 
 /*******************************************************************************/
@@ -555,6 +710,8 @@ ret_code_t SS_SetTxbuffer(uint8_t *pData, uint16_t length)
  */
 ret_code_t SS_SetPhoneTxbuffer(uint8_t *pData, uint16_t length)
 {
+    ret_code_t err_code;
+
     if (_spiSlaveInit != true)
     {
         return NRF_ERROR_INVALID_STATE;
@@ -581,22 +738,33 @@ ret_code_t SS_SetPhoneTxbuffer(uint8_t *pData, uint16_t length)
     memset(m_phone_tx_buf, 0, sizeof(m_phone_tx_buf));
     memcpy(m_phone_tx_buf, pData, length);
     _phoneTxPending = true;
+    _phoneTxRetries = 0;
 
-    if (SSi_IsCsLow() == true)
+    if ((SSi_IsCsLow() == true) || (SSi_IsSpiStreamingActive() == true))
     {
         /*
-         * CS low means the STM32 master is already performing a transaction.
-         * Do not uninitialize SPIS, pull MISO low, or replace the active TX
-         * buffer while that transaction is in progress. Leave the packet
-         * pending; SSi_SpisScheduledEvent() will handle it after XFER_DONE.
+         * Either the STM32 master is mid-transaction (CS low) or it completed
+         * a transfer recently and will poll again shortly. Pulsing MISO now
+         * would race the master's next CS assertion, so defer instead: the
+         * XFER_DONE path pulses MISO right after CS rises, at the start of
+         * the master's idle gap. The timeout bounds the wait in case the
+         * master stops polling before the next transaction.
          */
+        err_code = SSi_StartPhoneTxTimeout();
+        if (err_code != NRF_SUCCESS)
+        {
+            SSi_ClearPhoneTx(true);
+            return err_code;
+        }
+
         NRF_LOG_INFO("Phone SPI bridge payload queued for next safe SPI transaction");
         return NRF_SUCCESS;
     }
 
     /*
-     * No SPI transaction is active, so signal the STM32 immediately and arm
-     * the phone packet when the STM32 responds by pulling CS low.
+     * The SPI bus is idle (no transaction in progress and none recently), so
+     * signal the STM32 immediately and arm the phone packet for the read it
+     * starts in response.
      */
     return SSi_InterruptStm32AndArmPhoneTx();
 }

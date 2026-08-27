@@ -90,7 +90,8 @@
 
 #define APP_BLE_CONN_CFG_TAG            1                                           /**< A tag identifying the SoftDevice BLE configuration. */
 
-#define DEVICE_NAME                     "AIM21"                                     /**< Name of device. Will be included in the advertising data. */
+#define DEVICE_NAME_PREFIX              "AIM21"                                     /**< Name prefix. The BLE address is appended to it to form the advertised name. */
+#define DEVICE_NAME_MAX_LEN             (sizeof(DEVICE_NAME_PREFIX) + 1 + 12)       /**< Prefix (sizeof includes the NUL) + '_' + 12 hex digits of the BLE address. */
 #define NUS_SERVICE_UUID_TYPE           BLE_UUID_TYPE_VENDOR_BEGIN                  /**< UUID type for the Nordic UART Service (vendor specific). */
 
 #define APP_BLE_OBSERVER_PRIO           3                                           /**< Application's BLE observer priority. You shouldn't need to modify this value. */
@@ -100,7 +101,7 @@
 #define APP_ADV_DURATION                0                                           /**< The advertising duration (180 seconds) in units of 10 milliseconds. */
 
 #define MIN_CONN_INTERVAL               MSEC_TO_UNITS(60, UNIT_1_25_MS)             /**< Minimum acceptable connection interval (20 ms), Connection interval uses 1.25 ms units. */
-#define MAX_CONN_INTERVAL               MSEC_TO_UNITS(70, UNIT_1_25_MS)             /**< Maximum acceptable connection interval (75 ms), Connection interval uses 1.25 ms units. */
+#define MAX_CONN_INTERVAL               MSEC_TO_UNITS(80, UNIT_1_25_MS)             /**< Maximum acceptable connection interval (80 ms), Connection interval uses 1.25 ms units. */
 #define SLAVE_LATENCY                   1                                           /**< Slave latency. */
 #define CONN_SUP_TIMEOUT                MSEC_TO_UNITS(16000, UNIT_10_MS)             /**< Connection supervisory timeout (4 seconds), Supervision Timeout uses 10 ms units. */
 #define FIRST_CONN_PARAMS_UPDATE_DELAY  APP_TIMER_TICKS(5000)                       /**< Time from initiating event (connect or start of notification) to first time sd_ble_gap_conn_param_update is called (5 seconds). */
@@ -114,7 +115,7 @@
 #ifdef SVCALL_AS_NORMAL_FUNCTION
 #define SCHED_QUEUE_SIZE                20                                          /**< Maximum number of events in the scheduler queue. More is needed in case of Serialization. */
 #else
-#define SCHED_QUEUE_SIZE                10                                          /**< Maximum number of events in the scheduler queue. */
+#define SCHED_QUEUE_SIZE                32                                          /**< Maximum number of events in the scheduler queue. Sized for BLE connection-setup bursts overlapping full-rate SPI streaming. */
 #endif
 
 
@@ -130,6 +131,7 @@ static ble_uuid_t m_adv_uuids[]          =                                      
     {BLE_UUID_NUS_SERVICE, NUS_SERVICE_UUID_TYPE},
     {BLE_UUID_DEVICE_INFORMATION_SERVICE, BLE_UUID_TYPE_BLE} // Add DIS UUID
 };
+static char       m_device_name[DEVICE_NAME_MAX_LEN];                               /**< Advertised device name, "AIM21_<BLE address>", built at startup. */
 static uint8_t _RxDataBuff[SPIS_DATA_RX_BUFFER_SIZE];
 
 static void DataTxOnBLE(uint8_t *pData, uint16_t length);
@@ -195,12 +197,30 @@ static void gap_params_init(void)
     uint32_t                err_code;
     ble_gap_conn_params_t   gap_conn_params;
     ble_gap_conn_sec_mode_t sec_mode;
+    ble_gap_addr_t          gap_addr;
 
     BLE_GAP_CONN_SEC_MODE_SET_OPEN(&sec_mode);
 
+    // Append the BLE address to the name so units are individually identifiable in a scan.
+    // addr[] is little-endian, so print addr[5] first to match the usual MSB-first notation.
+    err_code = sd_ble_gap_addr_get(&gap_addr);
+    if (err_code == NRF_SUCCESS)
+    {
+        (void) snprintf(m_device_name, sizeof(m_device_name), "%s_%02X%02X%02X%02X%02X%02X",
+                        DEVICE_NAME_PREFIX,
+                        gap_addr.addr[5], gap_addr.addr[4], gap_addr.addr[3],
+                        gap_addr.addr[2], gap_addr.addr[1], gap_addr.addr[0]);
+    }
+    else
+    {
+        // Cosmetic feature: keep advertising under the bare prefix rather than failing to start.
+        strcpy(m_device_name, DEVICE_NAME_PREFIX);
+    }
+    NRF_LOG_INFO("Device name: %s", NRF_LOG_PUSH(m_device_name));
+
     err_code = sd_ble_gap_device_name_set(&sec_mode,
-                                          (const uint8_t *) DEVICE_NAME,
-                                          strlen(DEVICE_NAME));
+                                          (const uint8_t *) m_device_name,
+                                          strlen(m_device_name));
     APP_ERROR_CHECK(err_code);
 
     memset(&gap_conn_params, 0, sizeof(gap_conn_params));
@@ -420,7 +440,14 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
                 .tx_phys = BLE_GAP_PHY_AUTO,
             };
             err_code = sd_ble_gap_phy_update(p_ble_evt->evt.gap_evt.conn_handle, &phys);
-            APP_ERROR_CHECK(err_code);
+            if (err_code != NRF_SUCCESS)
+            {
+                /* NRF_ERROR_BUSY if a link procedure is already running, or
+                 * BLE_ERROR_INVALID_CONN_HANDLE if the peer went away between
+                 * the request and this call. Neither is fatal: the link keeps
+                 * working on the current PHY. */
+                NRF_LOG_WARNING("PHY update rejected: 0x%08X", (unsigned int)err_code);
+            }
         } break;
 
         case BLE_GAP_EVT_SEC_PARAMS_REQUEST:
@@ -439,14 +466,22 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
             // Disconnect on GATT Client timeout event.
             err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gattc_evt.conn_handle,
                                              BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
-            APP_ERROR_CHECK(err_code);
+            if (err_code != NRF_SUCCESS)
+            {
+                /* NRF_ERROR_INVALID_STATE if a disconnect is already in flight.
+                 * The link is going down either way. */
+                NRF_LOG_WARNING("GATTC timeout disconnect failed: 0x%08X", (unsigned int)err_code);
+            }
             break;
 
         case BLE_GATTS_EVT_TIMEOUT:
             // Disconnect on GATT Server timeout event.
             err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gatts_evt.conn_handle,
                                              BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
-            APP_ERROR_CHECK(err_code);
+            if (err_code != NRF_SUCCESS)
+            {
+                NRF_LOG_WARNING("GATTS timeout disconnect failed: 0x%08X", (unsigned int)err_code);
+            }
             break;
 
         default:
@@ -516,6 +551,20 @@ void gatt_init(void)
     APP_ERROR_CHECK(err_code);
 }
 
+/**@brief Function for handling errors reported by the advertising module.
+ *
+ * @details Called by ble_advertising when it fails to (re)start advertising on
+ *          its own, most importantly on the automatic restart after
+ *          BLE_GAP_EVT_DISCONNECTED. Without this handler the module discards
+ *          the failure silently and the device simply stops advertising.
+ *
+ * @param[in] nrf_error  Error returned by ble_advertising_start().
+ */
+static void on_adv_error(uint32_t nrf_error)
+{
+    NRF_LOG_ERROR("Advertising restart failed: 0x%08X", (unsigned int)nrf_error);
+}
+
 /**@brief Function for initializing the Advertising functionality.
  */
 static void advertising_init(void)
@@ -535,7 +584,8 @@ static void advertising_init(void)
     init.config.ble_adv_fast_enabled  = true;
     init.config.ble_adv_fast_interval = APP_ADV_INTERVAL;
     init.config.ble_adv_fast_timeout  = APP_ADV_DURATION;
-    init.evt_handler = on_adv_evt;
+    init.evt_handler   = on_adv_evt;
+    init.error_handler = on_adv_error;
 
     err_code = ble_advertising_init(&m_advertising, &init);
     APP_ERROR_CHECK(err_code);
@@ -661,7 +711,7 @@ static void dis_init(void) {
     memset(&dis_init_obj, 0, sizeof(dis_init_obj));
 
     //ble_srv_ascii_to_utf8(&dis_init_obj.manufact_name_str, "Nordic Semiconductor");
-    ble_srv_ascii_to_utf8(&dis_init_obj.fw_rev_str, "20q16cst1sl63ci10rotLT"); // Set firmware version
+    ble_srv_ascii_to_utf8(&dis_init_obj.fw_rev_str, "error_logging"); // Set firmware version
     ble_srv_ascii_to_utf8(&dis_init_obj.hw_rev_str, "AIM21");
     ble_srv_ascii_to_utf8(&dis_init_obj.model_num_str, "nRF52832");
 
