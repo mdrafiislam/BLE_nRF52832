@@ -1,0 +1,105 @@
+name: Firmware checks
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Commit to check out. Empty means the caller's default checkout.
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and verify ${{ matrix.configuration }} firmware
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [Debug, Release]
+    env:
+      CI_ACCEPT_SEGGER_LICENSE: '1'
+
+    steps:
+      - name: Check out firmware
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Read the pinned Python version
+        id: pins
+        run: |
+          echo "python=$(python3 -c "import json; print(json.load(open('tools.json'))['nrfutil']['python'])")" >> "$GITHUB_OUTPUT"
+
+      - name: Install Python
+        id: py
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ steps.pins.outputs.python }}
+
+      - name: Restore firmware toolchain
+        id: toolchain
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ runner.temp }}/ci-cache
+          key: spi2ble-tools-v3-${{ runner.os }}-${{ runner.arch }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('tools.json', 'scripts/nrfutil-constraints.txt') }}
+
+      - name: Fetch the mirrored toolchain archives
+        if: steps.toolchain.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "${{ runner.temp }}/ci-cache/downloads"
+          for tool in segger_embedded_studio nrf_command_line_tools; do
+            archive="$(python3 -c "import json, sys; print(json.load(open('tools.json'))[sys.argv[1]]['archive'])" "$tool")"
+            gh release download tools \
+              --repo "${{ github.repository }}" \
+              --pattern "$archive" \
+              --dir "${{ runner.temp }}/ci-cache/downloads" \
+              --clobber \
+              || echo "no mirrored $archive on the tools release; scripts/ci.py will download it upstream"
+          done
+
+      - name: Install host prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            build-essential \
+            ca-certificates \
+            libfontconfig1 \
+            libfreetype6 \
+            libusb-1.0-0 \
+            libx11-6 \
+            libxext6 \
+            libxrender1 \
+            make \
+            unzip
+
+      - name: Build, package, and verify ${{ matrix.configuration }}
+        env:
+          CI_CACHE_DIR: ${{ runner.temp }}/ci-cache
+          CI_SOURCE_REVISION: ${{ inputs.ref }}
+        run: python3 scripts/ci.py --configuration "${{ matrix.configuration }}"
+
+      - name: Save the toolchain for later runs to restore
+        if: >-
+          github.ref == 'refs/heads/main' &&
+          matrix.configuration == 'Debug' &&
+          steps.toolchain.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ runner.temp }}/ci-cache
+          key: ${{ steps.toolchain.outputs.cache-primary-key }}
+
+      - name: Upload ${{ matrix.configuration }} firmware bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: firmware-${{ matrix.configuration }}
+          path: build/ci/${{ matrix.configuration }}/
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 14
