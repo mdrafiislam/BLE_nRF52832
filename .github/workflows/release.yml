@@ -1,0 +1,229 @@
+name: Firmware release
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: How much to move the version
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+
+concurrency:
+  group: firmware-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.merged == true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      do_release: ${{ steps.ctx.outputs.do_release }}
+      source_sha: ${{ steps.ctx.outputs.source_sha }}
+      tag: ${{ steps.v.outputs.tag }}
+      channel: ${{ steps.ctx.outputs.channel }}
+      artifact_basename: ${{ steps.v.outputs.artifact_basename }}
+    steps:
+      - name: Decide whether to release
+        id: ctx
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          MERGED_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          THIS_REPO: ${{ github.repository }}
+          DISPATCH_SHA: ${{ github.sha }}
+          DISPATCH_REF: ${{ github.ref_name }}
+          BUMP_INPUT: ${{ inputs.bump }}
+        run: |
+          set -eu
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            do_release=true
+            bump="$BUMP_INPUT"
+            source_sha="$DISPATCH_SHA"
+            slug="$(printf '%s' "$DISPATCH_REF" | tr -c 'A-Za-z0-9' '-')"
+            if [ "$DISPATCH_REF" = main ]; then channel=stable; else channel=preview; fi
+          else
+            if [ -z "$MERGED_SHA" ]; then
+              echo "::error::merge_commit_sha is empty for pull request #$PR_NUMBER. Refusing to fall back to github.sha, which tracks the tip of main and would build whatever merged most recently rather than this pull request."
+              exit 1
+            fi
+
+            lower="$(printf '%s' "$PR_TITLE" | tr 'A-Z' 'a-z')"
+            case "$lower" in
+              *'[release]'*|*'[release:'*) asked=yes ;;
+              *)                           asked=no ;;
+            esac
+
+            if [ "$asked" = "no" ]; then
+              do_release=false
+              bump=none
+              echo "Pull request #$PR_NUMBER did not ask for a release, so no firmware was built or published." >> "$GITHUB_STEP_SUMMARY"
+            else
+              if [ "$HEAD_REPO" != "$THIS_REPO" ]; then
+                echo "::error::Pull request #$PR_NUMBER asks for a release but comes from the fork $HEAD_REPO. Fork runs get a read-only token and cannot create a tag or a release. Re-land the change from a branch in $THIS_REPO."
+                exit 1
+              fi
+              markers="$(printf '%s' "$lower" \
+                         | grep -oE '\[release(:(major|minor|patch))?\]' \
+                         | sed 's/^\[release\]$/[release:patch]/' \
+                         | sort -u || true)"
+              found="$(printf '%s' "$markers" | grep -c . || true)"
+              if [ "$found" -eq 0 ]; then
+                echo "::error::The title of pull request #$PR_NUMBER contains [release but not a marker this can read. Write [release], or [release:minor] or [release:major], exactly like that."
+                exit 1
+              fi
+              if [ "$found" -gt 1 ]; then
+                echo "::error::The title of pull request #$PR_NUMBER asks for more than one kind of release: $(printf '%s' "$markers" | tr '\n' ' '). Leave one and edit the title again."
+                exit 1
+              fi
+              case "$markers" in
+                '[release:major]') bump=major ;;
+                '[release:minor]') bump=minor ;;
+                *)                 bump=patch ;;
+              esac
+              do_release=true
+            fi
+
+            source_sha="$MERGED_SHA"
+            channel=stable
+            slug="pr$PR_NUMBER"
+          fi
+
+          {
+            echo "do_release=$do_release"
+            echo "bump=$bump"
+            echo "source_sha=$source_sha"
+            echo "source_slug=$slug"
+            echo "channel=$channel"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Check out the commit being released
+        uses: actions/checkout@v7
+        if: steps.ctx.outputs.do_release == 'true'
+        with:
+          ref: ${{ steps.ctx.outputs.source_sha }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Work out the next version
+        id: v
+        if: steps.ctx.outputs.do_release == 'true'
+        env:
+          BUMP: ${{ steps.ctx.outputs.bump }}
+          SOURCE_SHA: ${{ steps.ctx.outputs.source_sha }}
+          SLUG: ${{ steps.ctx.outputs.source_slug }}
+          CHANNEL: ${{ steps.ctx.outputs.channel }}
+        run: |
+          set -eu
+          latest="$(git tag -l --merged "$SOURCE_SHA" --sort=-v:refname \
+                    | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1 || true)"
+          if [ -z "$latest" ]; then
+            echo "::error::No vX.Y.Z tag is reachable from the commit being built. Either the tag fetch failed or this history has no released version yet. Refusing to guess."
+            exit 1
+          fi
+
+          ver="${latest#v}"
+          major="${ver%%.*}"; rest="${ver#*.}"
+          minor="${rest%%.*}"; patch="${rest##*.}"
+          case "$BUMP" in
+            major) next="$(( 10#$major + 1 )).0.0" ;;
+            minor) next="${major}.$(( 10#$minor + 1 )).0" ;;
+            patch) next="${major}.${minor}.$(( 10#$patch + 1 ))" ;;
+            *)
+              echo "::error::Cannot tell how much to move the version from '$BUMP'."
+              exit 1
+              ;;
+          esac
+
+          sha="$(git rev-parse --short "$SOURCE_SHA")"
+          build_number="$(( ( $(date +%s) - 1577836800 ) / 60 ))"
+
+          if [ "$CHANNEL" = preview ]; then
+            tag="v$next-$SLUG.$build_number"
+            basename="aim-bt-$tag-$sha"
+          else
+            tag="v$next"
+            basename="aim-bt-$tag-$SLUG-$sha"
+            already="$(git tag --points-at "$SOURCE_SHA" \
+                       | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1 || true)"
+            if [ -n "$already" ]; then
+              echo "::error::This commit already shipped as $already, so there is nothing to release. If $already went out incomplete, delete that release and its tag first before releasing again."
+              exit 1
+            fi
+          fi
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "::error::$tag already exists, so this run cannot claim it. That usually means the pull request merged before other releases went out. Release from a newer commit instead."
+            exit 1
+          fi
+
+          {
+            echo "tag=$tag"
+            echo "artifact_basename=$basename"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "Releasing $tag ($CHANNEL) from $SLUG, commit $sha, following $latest."
+            echo "Build number $build_number."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  checks:
+    needs: prepare
+    if: needs.prepare.outputs.do_release == 'true'
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.prepare.outputs.source_sha }}
+
+  publish:
+    name: Publish Debug and Release firmware
+    needs: [prepare, checks]
+    if: success() && needs.prepare.outputs.do_release == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+
+      - name: Assemble the release bundles
+        env:
+          BASE: ${{ needs.prepare.outputs.artifact_basename }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          for configuration in Debug Release; do
+            slug="$(printf '%s' "$configuration" | tr '[:upper:]' '[:lower:]')"
+            ( cd "artifacts/firmware-$configuration" \
+              && zip -q -9 -X -r "$GITHUB_WORKSPACE/dist/$BASE-$slug.zip" . )
+          done
+          ls -l dist
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          TARGET: ${{ needs.prepare.outputs.source_sha }}
+          CHANNEL: ${{ needs.prepare.outputs.channel }}
+        run: |
+          set -euo pipefail
+          prerelease=""
+          if [ "$CHANNEL" = preview ]; then prerelease=--prerelease; fi
+          gh release create "$TAG" \
+            --target "$TARGET" \
+            --title "$TAG" \
+            --generate-notes \
+            $prerelease \
+            dist/*.zip

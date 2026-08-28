@@ -1,0 +1,51 @@
+{
+  "project": {
+    "project_file": "pca10040/s132/ses/ble_app_spis_pca10040_s132.emProject",
+    "application_hex": "pca10040/s132/ses/Output/{configuration}/Exe/ble_app_spis_pca10040_s132.hex"
+  },
+  "segger_embedded_studio": {
+    "version": "5.34",
+    "archive": "Setup_EmbeddedStudio_ARM_v534_linux_x64.tar.gz",
+    "url": "https://www.segger.com/downloads/embedded-studio/Setup_EmbeddedStudio_ARM_v534_linux_x64.tar.gz",
+    "sha256": "bb00cab6331044699668e3487085117918d3101a9f3ed33cf418a2898bc9e8ae"
+  },
+  "nrf5_sdk": {
+    "version": "17.1.0_ddde560",
+    "archive": "nRF5_SDK_17.1.0_ddde560.zip",
+    "extracted_root": "nRF5_SDK_17.1.0_ddde560",
+    "url": "https://developer.nordicsemi.com/nRF51_SDK/nRF5_SDK_v17.x.x/nRF5_SDK_17.1.0_ddde560.zip",
+    "sha256": "5bfe38e744c39fd7f30e10077ba12df306ef91f368894795d6a3e7a62dc68061",
+    "workspace_relative_path": "examples/ble_peripheral/SPI2BLE-UpWork",
+    "patch": {
+      "target": "components/ble/ble_services/ble_nus/ble_nus.c",
+      "before": "#define NUS_BASE_UUID                  {{0x9E, 0xCA, 0xDC, 0x24, 0x0E, 0xE5, 0xA9, 0xE0, 0x93, 0xF3, 0xA3, 0xB5, 0x00, 0x00, 0x40, 0x6E}}",
+      "after": "#define NUS_BASE_UUID                  {{0x31, 0xAC, 0x24, 0x85, 0x9B, 0x50, 0x22, 0xB5, 0xD3, 0x48, 0x2D, 0xD9, 0xA9, 0xD2, 0xA1, 0x4A}}"
+    }
+  },
+  "nrf_command_line_tools": {
+    "version": "10.24.2",
+    "archive": "nrf-command-line-tools-10.24.2_linux-amd64.tar.gz",
+    "url": "https://nsscprodmedia.blob.core.windows.net/prod/software-and-other-downloads/desktop-software/nrf-command-line-tools/sw/versions-10-x-x/10-24-2/nrf-command-line-tools-10.24.2_linux-amd64.tar.gz",
+    "sha256": "9d65b0d80fccb567668fa41585c9261947b1740f52eba8d3a368cf6f8fd7b793"
+  },
+  "nrfutil": {
+    "version": "6.1.7",
+    "archive": "nrfutil-6.1.7.tar.gz",
+    "url": "https://files.pythonhosted.org/packages/8b/76/bd2f7a5d27c232c61f6449b72db7826fa6aa486b1201def2dc2bc67282dc/nrfutil-6.1.7.tar.gz",
+    "sha256": "cdeb5155cd65ef62c196642cfab9a2abd65fc61ce77439b1a4549f68bfc2ffb6",
+    "python": "3.10"
+  },
+  "packaging": {
+    "signing_key": "Merge_and_zip/Key/private.key",
+    "softdevice": "Merge_and_zip/SD_hex/s132_nrf52_7.2.0_softdevice.hex",
+    "softdevice_sha256": "676b479e9f845d17fdaa48e107a978185b5cd0ccbace8fc0594e19e9583a9f24",
+    "bootloader": "Merge_and_zip/BL_hex/secure_bootloader_ble_s132_pca10040.hex",
+    "bootloader_sha256": "1b30ab1f5b1dfa6fd8257a325a54d9af736b929f2aef6d6428df9b450ea5fa7f",
+    "application_version_settings": 0,
+    "bootloader_version_settings": 0,
+    "application_version_package": 1,
+    "bootloader_settings_version": 2,
+    "hardware_version": 52,
+    "softdevice_requirement": "0x0101"
+  }
+}
