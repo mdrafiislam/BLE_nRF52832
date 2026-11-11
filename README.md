@@ -1,4 +1,4 @@
-# SPI2BLE-UpWork
+# BLE_nRF52832
 
 ## Contents:
 
@@ -8,7 +8,7 @@
 
 ## Device Configuration
 
-nRF52832 is in SPI slave and BLE peripheral mode. Current consumption is 6uA in advertising mode and 400uA
+nRF52832 is in SPI slave and BLE peripheral mode. Average current consumption is 6 uA in advertising mode and 180 uA
 in data transmission mode. The device configurations are given below.
 
 DFU start command = STARTDFU  
@@ -50,9 +50,9 @@ RAM\_START=0x20004650
 ## Steps to build and run the program:
 
 1. Download and unzip SDK 17.1.0 from the [Nordic Semiconductor website](www.nordicsemi.com/Products/Development-software/nrf5-sdk/download)
-2. Download and unzip this repository and place it inside the "ble\_peripheral" folder inside the SDK 17.1.0. The path to the "ble\_peripheral" folder should be: "...\\nRF5\_SDK\_17.1.0\_ddde560\\examples\\ble\_peripheral." After pasting, the folder format should look like this: "...\\nRF5\_SDK\_17.1.0\_ddde560\\examples\\ble\_peripheral\\SPI2BLE-UpWork."
+2. Download and unzip this repository and place it inside the "ble\_peripheral" folder inside the SDK 17.1.0. The path to the "ble\_peripheral" folder should be: "...\\nRF5\_SDK\_17.1.0\_ddde560\\examples\\ble\_peripheral." After pasting, the folder format should look like this: "...\\nRF5\_SDK\_17.1.0\_ddde560\\examples\\ble\_peripheral\\BLE_nRF52832."
 3. Download, install, and run [Segger Embedded Studio for Arm v5.34](https://www.segger.com/downloads/embedded-studio/)
-4. In Segger Embedded Studio (SES) goto File>Open Solution and open ble\_app\_spis\_pca10040\_s132.emProject. Path to this file should be: "...\\nRF5\_SDK\_17.1.0\_ddde560\\example\\ble\_peripheral\\SPI2BLE-UpWork\\pca10040\\s132."
+4. In Segger Embedded Studio (SES) goto File>Open Solution and open ble\_app\_spis\_pca10040\_s132.emProject. Path to this file should be: "...\\nRF5\_SDK\_17.1.0\_ddde560\\example\\ble\_peripheral\\BLE_nRF52832\\pca10040\\s132."
 5. In SES, goto View>Project Explorer. In "Project Explorer" on the left hand side of the SES screen, open "ble\_nus.c" under "nRF\_BLE\_Services" section. Inside ble\_nus.c on line 64, change #define NUS\_BASE\_UUID to {{0x31, 0xAC, 0x24, 0x85, 0x9B, 0x50, 0x22, 0xB5, 0xD3, 0x48, 0x2D, 0xD9, 0xA9, 0xD2, 0xA1, 0x4A}}. It should look like this: #define NUS\_BASE\_UUID {{0x31, 0xAC, 0x24, 0x85, 0x9B, 0x50, 0x22, 0xB5, 0xD3, 0x48, 0x2D, 0xD9, 0xA9, 0xD2, 0xA1, 0x4A}}
 6. Again, in "Project Explorer" under "Application" section, go to sdk\_config.h and change #define NRF\_SDH\_BLE\_GAP\_EVENT\_LENGTH 6 to #define NRF\_SDH\_BLE\_GAP\_EVENT\_LENGTH 10. This will increase the radio on time to accommodate all the packets in the connection interval.
 7. Again, in "Project Explorer" right click on "nRF\_BLE\_Services" section, then click on "Add Existing File..." Then go to components\\ble\\ble\_services\\ble\_dis and select ble\_dis.c and click open.
@@ -64,7 +64,7 @@ RAM\_START=0x20004650
 1. Download and install [python 3.7 or later](https://www.python.org/downloads/). Add python path to Environment Path Variable
 2. Use pip to install [nrfutil.](https://infocenter.nordicsemi.com/index.jsp?topic=/ug_nrfutil/UG/nrfutil/nrfutil_installing.html) Open a command prompt and type nrfutil and press enter. If the nrfutil installation was successful, the command prompt should display Options and Commands of nrfutil.
 3. Install [nRF Command Line Tools](https://www.nordicsemi.com/Products/Development-tools/nrf-command-line-tools/download). Add "bin" folder of the "nRF command line tool" to Environment Path Variable. Usual location of "bin" folder is: C:\\Program Files\\Nordic Semiconductor\\nrf-command-line-tools\\bin
-4. Copy the ble\_app\_spis\_pca10040\_s132.hex from "...\\nRF5\_SDK\_17.1.0\_ddde560\\example\\ble\_peripheral\\SPI2BLE-UpWork\\pca10040\\s132\\ses\\Output\\Release\\Exe" (or, "...\\SPI2BLE-UpWork\\pca10040\\s132\\ses\\Output\\Debug\\Exe") and paste it inside "Merge\_and\_Zip" folder. Run "ble\_spis\_merge\_zip\_Generator.bat." This will create two files, i.e., "merge\_ble\_app\_spis\_pca10040\_s132.hex" that contains the application and bootloader for wireless DFU, and "ble\_app\_spis\_pca10040\_s132.zip" for wireless DFU.
+4. Copy the ble\_app\_spis\_pca10040\_s132.hex from "...\\nRF5\_SDK\_17.1.0\_ddde560\\example\\ble\_peripheral\\BLE_nRF52832\\pca10040\\s132\\ses\\Output\\Release\\Exe" (or, "...\\BLE_nRF52832\\pca10040\\s132\\ses\\Output\\Debug\\Exe") and paste it inside "Merge\_and\_Zip" folder. Run "ble\_spis\_merge\_zip\_Generator.bat." This will create two files, i.e., "merge\_ble\_app\_spis\_pca10040\_s132.hex" that contains the application and bootloader for wireless DFU, and "ble\_app\_spis\_pca10040\_s132.zip" for wireless DFU.
 5. To load HEX file, download and install [nRF Connect for desktop](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-desktop/Download#infotabs). Download and install [J-Link](https://www.segger.com/downloads/jlink/). Use [load\_hex\_nrf52832.docx](/Documents/) inside the "Document" folder of this repository to load "merge\_ble\_app\_spis\_pca10040\_s132.hex" in AIM device. Follow step: d-to-g of [load\_hex\_nrf52832.docx](/Documents/) document to load hex file to any other nRF52832 device.
 6. To perform wireless DFU, the nRF52832 has to have OTA DFU bootloader. So before performing wireless DFU, the "merge\_ble\_app\_spis\_pca10040\_s132.hex" has to be loaded to nRF52832 device at least once by following step 5. After that, follow [BLE DFU.docx](/Documents/) document in the "Documents" folder of this repository to perform wireless DFU.
 

@@ -15,7 +15,7 @@
     "extracted_root": "nRF5_SDK_17.1.0_ddde560",
     "url": "https://developer.nordicsemi.com/nRF51_SDK/nRF5_SDK_v17.x.x/nRF5_SDK_17.1.0_ddde560.zip",
     "sha256": "5bfe38e744c39fd7f30e10077ba12df306ef91f368894795d6a3e7a62dc68061",
-    "workspace_relative_path": "examples/ble_peripheral/SPI2BLE-UpWork",
+    "workspace_relative_path": "examples/ble_peripheral/BLE_nRF52832",
     "patch": {
       "target": "components/ble/ble_services/ble_nus/ble_nus.c",
       "before": "#define NUS_BASE_UUID                  {{0x9E, 0xCA, 0xDC, 0x24, 0x0E, 0xE5, 0xA9, 0xE0, 0x93, 0xF3, 0xA3, 0xB5, 0x00, 0x00, 0x40, 0x6E}}",
